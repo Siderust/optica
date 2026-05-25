@@ -93,7 +93,9 @@ impl<'a> PhaseFunction for PhaseModel<'a> {
     fn phase(&self, wavelength: Nanometers, theta: Radians) -> Quantity<ScatteringFactor> {
         match *self {
             Self::Rayleigh => RayleighPhaseFunction.phase(wavelength, theta),
-            Self::HenyeyGreenstein { g } => HenyeyGreensteinPhaseFunction { g }.phase(wavelength, theta),
+            Self::HenyeyGreenstein { g } => {
+                HenyeyGreensteinPhaseFunction { g }.phase(wavelength, theta)
+            }
             Self::DoubleHenyeyGreenstein { g1, g2, weight } => {
                 DoubleHenyeyGreensteinPhaseFunction { g1, g2, weight }.phase(wavelength, theta)
             }
@@ -203,7 +205,9 @@ impl PhaseFunction for DoubleHenyeyGreensteinPhaseFunction {
 #[must_use]
 pub fn rayleigh_phase(theta: Radians) -> Quantity<ScatteringFactor> {
     let cosine = theta.value().cos();
-    Quantity::<ScatteringFactor>::new(3.0 / (16.0 * core::f64::consts::PI) * (1.0 + cosine * cosine))
+    Quantity::<ScatteringFactor>::new(
+        3.0 / (16.0 * core::f64::consts::PI) * (1.0 + cosine * cosine),
+    )
 }
 
 #[cfg(test)]
@@ -223,6 +227,10 @@ mod tests {
     fn isotropic_hg_matches_one_over_four_pi() {
         let hg = HenyeyGreensteinPhaseFunction { g: 0.0 };
         let value = hg.phase(Nanometers::new(550.0), Radians::new(1.0));
-        assert_relative_eq!(value.value(), 1.0 / (4.0 * core::f64::consts::PI), epsilon = 1.0e-12);
+        assert_relative_eq!(
+            value.value(),
+            1.0 / (4.0 * core::f64::consts::PI),
+            epsilon = 1.0e-12
+        );
     }
 }

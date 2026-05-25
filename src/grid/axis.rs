@@ -117,13 +117,22 @@ impl Axis {
         match self {
             Self::Uniform { start, step, count } => {
                 if *count < 2 {
-                    return Err(GridError::TooFewSamples { axis: name, len: *count });
+                    return Err(GridError::TooFewSamples {
+                        axis: name,
+                        len: *count,
+                    });
                 }
                 if !start.is_finite() {
-                    return Err(GridError::NonFinite { axis: name, index: 0 });
+                    return Err(GridError::NonFinite {
+                        axis: name,
+                        index: 0,
+                    });
                 }
                 if !step.is_finite() {
-                    return Err(GridError::NonFinite { axis: name, index: 1 });
+                    return Err(GridError::NonFinite {
+                        axis: name,
+                        index: 1,
+                    });
                 }
                 if *step <= 0.0 {
                     return Err(GridError::NonPositiveStep { step: *step });
@@ -132,14 +141,20 @@ impl Axis {
             }
             Self::NonUniform(xs) => {
                 if xs.len() < 2 {
-                    return Err(GridError::TooFewSamples { axis: name, len: xs.len() });
+                    return Err(GridError::TooFewSamples {
+                        axis: name,
+                        len: xs.len(),
+                    });
                 }
                 for (index, value) in xs.iter().copied().enumerate() {
                     if !value.is_finite() {
                         return Err(GridError::NonFinite { axis: name, index });
                     }
                     if index > 0 && value <= xs[index - 1] {
-                        return Err(GridError::NotMonotonic { axis: name, at_index: index });
+                        return Err(GridError::NotMonotonic {
+                            axis: name,
+                            at_index: index,
+                        });
                     }
                 }
                 Ok(())
@@ -162,14 +177,6 @@ impl Axis {
     pub(crate) fn contains(&self, x: f64) -> bool {
         let (min, max) = self.bounds();
         x.is_finite() && x >= min && x <= max
-    }
-
-    #[must_use]
-    pub(crate) fn raw_points(&self) -> Option<&[f64]> {
-        match self {
-            Self::Uniform { .. } => None,
-            Self::NonUniform(xs) => Some(xs.as_ref()),
-        }
     }
 }
 

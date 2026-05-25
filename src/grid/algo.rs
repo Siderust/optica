@@ -18,7 +18,11 @@ use crate::grid::{AxisDirection, GridError, OutOfRange};
 pub(crate) fn locate(xs: &[f64], x: f64) -> (usize, f64) {
     let last = xs.len() - 1;
     if !x.is_finite() {
-        return if x.is_sign_positive() { (last - 1, 1.0) } else { (0, 0.0) };
+        return if x.is_sign_positive() {
+            (last - 1, 1.0)
+        } else {
+            (0, 0.0)
+        };
     }
     if x <= xs[0] {
         return (0, 0.0);
@@ -29,7 +33,11 @@ pub(crate) fn locate(xs: &[f64], x: f64) -> (usize, f64) {
     let upper = xs.partition_point(|v| *v <= x);
     let low = upper - 1;
     let denom = xs[upper] - xs[low];
-    let fraction = if denom == 0.0 { 0.0 } else { (x - xs[low]) / denom };
+    let fraction = if denom == 0.0 {
+        0.0
+    } else {
+        (x - xs[low]) / denom
+    };
     (low, fraction.clamp(0.0, 1.0))
 }
 
@@ -42,7 +50,11 @@ pub(crate) fn locate_uniform(start: f64, step: f64, count: usize, x: f64) -> (us
     let last = count - 1;
     let end = start + step * last as f64;
     if !x.is_finite() {
-        return if x.is_sign_positive() { (last - 1, 1.0) } else { (0, 0.0) };
+        return if x.is_sign_positive() {
+            (last - 1, 1.0)
+        } else {
+            (0, 0.0)
+        };
     }
     if x <= start {
         return (0, 0.0);
@@ -120,7 +132,10 @@ pub(crate) fn trilerp(
 /// ```
 pub fn validate_axis(name: &'static str, xs: &[f64]) -> Result<AxisDirection, GridError> {
     if xs.len() < 2 {
-        return Err(GridError::TooFewSamples { axis: name, len: xs.len() });
+        return Err(GridError::TooFewSamples {
+            axis: name,
+            len: xs.len(),
+        });
     }
     for (index, &v) in xs.iter().enumerate() {
         if !v.is_finite() {
@@ -129,12 +144,23 @@ pub fn validate_axis(name: &'static str, xs: &[f64]) -> Result<AxisDirection, Gr
     }
     let ascending = xs[1] > xs[0];
     for i in 1..xs.len() {
-        let monotone = if ascending { xs[i] > xs[i - 1] } else { xs[i] < xs[i - 1] };
+        let monotone = if ascending {
+            xs[i] > xs[i - 1]
+        } else {
+            xs[i] < xs[i - 1]
+        };
         if !monotone {
-            return Err(GridError::NotMonotonic { axis: name, at_index: i });
+            return Err(GridError::NotMonotonic {
+                axis: name,
+                at_index: i,
+            });
         }
     }
-    Ok(if ascending { AxisDirection::Ascending } else { AxisDirection::Descending })
+    Ok(if ascending {
+        AxisDirection::Ascending
+    } else {
+        AxisDirection::Descending
+    })
 }
 
 /// Returns the `(lo, hi)` bounds of `xs` in value order (lo ≤ hi regardless of direction).
@@ -158,7 +184,11 @@ pub(crate) fn locate_dir(xs: &[f64], x: f64, dir: AxisDirection) -> (usize, f64)
         AxisDirection::Descending => {
             let last = xs.len() - 1;
             if !x.is_finite() {
-                return if x.is_sign_positive() { (0, 0.0) } else { (last - 1, 1.0) };
+                return if x.is_sign_positive() {
+                    (0, 0.0)
+                } else {
+                    (last - 1, 1.0)
+                };
             }
             // xs is descending: xs[0] is highest, xs[last] is lowest
             if x >= xs[0] {
@@ -172,7 +202,11 @@ pub(crate) fn locate_dir(xs: &[f64], x: f64, dir: AxisDirection) -> (usize, f64)
             let upper = xs.partition_point(|v| *v > x);
             let low = upper - 1;
             let denom = xs[low] - xs[upper]; // positive since descending
-            let fraction = if denom == 0.0 { 0.0 } else { (xs[low] - x) / denom };
+            let fraction = if denom == 0.0 {
+                0.0
+            } else {
+                (xs[low] - x) / denom
+            };
             (low, fraction.clamp(0.0, 1.0))
         }
     }
@@ -195,7 +229,12 @@ pub(crate) fn check_oor(
     match oor {
         OutOfRange::ClampToEndpoints => Ok(true),
         OutOfRange::Zero => Ok(false),
-        OutOfRange::Error => Err(GridError::OutOfRange { axis, value: v, lo, hi }),
+        OutOfRange::Error => Err(GridError::OutOfRange {
+            axis,
+            value: v,
+            lo,
+            hi,
+        }),
     }
 }
 
@@ -360,7 +399,9 @@ pub fn trilinear(
     let v101 = table[idx(iz + 1, iy, ix + 1)];
     let v011 = table[idx(iz + 1, iy + 1, ix)];
     let v111 = table[idx(iz + 1, iy + 1, ix + 1)];
-    Ok(trilinear_unit(v000, v100, v010, v110, v001, v101, v011, v111, tx, ty, tz))
+    Ok(trilinear_unit(
+        v000, v100, v010, v110, v001, v101, v011, v111, tx, ty, tz,
+    ))
 }
 
 /// Trilinear kernel: interpolates within a unit cube `[0,1]³`.

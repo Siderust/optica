@@ -136,7 +136,11 @@ where
 /// assert_eq!(factor, 1.0);
 /// ```
 #[must_use]
-pub fn van_rhijn_factor(zenith: Radians, emission_height: Kilometers, body_radius: Kilometers) -> f64 {
+pub fn van_rhijn_factor(
+    zenith: Radians,
+    emission_height: Kilometers,
+    body_radius: Kilometers,
+) -> f64 {
     let r = body_radius.value();
     let h = emission_height.value();
     if !zenith.value().is_finite() || !h.is_finite() || !r.is_finite() || h <= 0.0 || r <= 0.0 {
@@ -157,8 +161,8 @@ mod tests {
     use approx::assert_relative_eq;
 
     use super::*;
-    use affn::{CartesianDirection, Position};
     use crate::medium::HomogeneousMedium;
+    use affn::{CartesianDirection, Position};
 
     #[derive(Debug, Copy, Clone)]
     struct Center;

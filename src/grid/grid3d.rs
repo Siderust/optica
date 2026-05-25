@@ -77,7 +77,10 @@ impl<X: Unit, Y: Unit, Z: Unit, V: Unit> Grid3D<X, Y, Z, V> {
         z_axis.validate_for_axis("z")?;
         let expected = x_axis.len() * y_axis.len() * z_axis.len();
         if expected != values.len() {
-            return Err(GridError::ShapeMismatch { expected, got: values.len() });
+            return Err(GridError::ShapeMismatch {
+                expected,
+                got: values.len(),
+            });
         }
         Ok(Self {
             x_axis,
@@ -239,14 +242,29 @@ impl<X: Unit, Y: Unit, Z: Unit, V: Unit> Grid3D<X, Y, Z, V> {
             OutOfRange::Error if strict_error => {
                 if !x_in {
                     let (lo, hi) = self.x_axis.bounds();
-                    return Err(GridError::OutOfRange { axis: "x", value: x, lo, hi });
+                    return Err(GridError::OutOfRange {
+                        axis: "x",
+                        value: x,
+                        lo,
+                        hi,
+                    });
                 }
                 if !y_in {
                     let (lo, hi) = self.y_axis.bounds();
-                    return Err(GridError::OutOfRange { axis: "y", value: y, lo, hi });
+                    return Err(GridError::OutOfRange {
+                        axis: "y",
+                        value: y,
+                        lo,
+                        hi,
+                    });
                 }
                 let (lo, hi) = self.z_axis.bounds();
-                Err(GridError::OutOfRange { axis: "z", value: z, lo, hi })
+                Err(GridError::OutOfRange {
+                    axis: "z",
+                    value: z,
+                    lo,
+                    hi,
+                })
             }
             OutOfRange::Error => {
                 let (ix, tx) = self.x_axis.locate(x);

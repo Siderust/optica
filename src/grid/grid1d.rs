@@ -91,7 +91,11 @@ impl<X: Unit, V: Unit> Grid1D<X, V> {
     /// Interpolates a value at `x`, returning an error when `OutOfRange::Error` is active.
     pub fn try_interp_at(&self, x: Quantity<X>) -> Result<Quantity<V>, GridError> {
         match self.locate_query(x.value(), true)? {
-            Some((low, t)) => Ok(Quantity::new(lerp(self.values[low], self.values[low + 1], t))),
+            Some((low, t)) => Ok(Quantity::new(lerp(
+                self.values[low],
+                self.values[low + 1],
+                t,
+            ))),
             None => Ok(Quantity::zero()),
         }
     }
@@ -105,17 +109,30 @@ impl<X: Unit, V: Unit> Grid1D<X, V> {
         let xv = x.value();
         if self.axis.contains(xv) {
             let (low, t) = self.axis.locate(xv);
-            return Ok(Quantity::new(lerp(self.values[low], self.values[low + 1], t)));
+            return Ok(Quantity::new(lerp(
+                self.values[low],
+                self.values[low + 1],
+                t,
+            )));
         }
         match oor {
             OutOfRange::ClampToEndpoints => {
                 let (low, t) = self.axis.locate(xv);
-                Ok(Quantity::new(lerp(self.values[low], self.values[low + 1], t)))
+                Ok(Quantity::new(lerp(
+                    self.values[low],
+                    self.values[low + 1],
+                    t,
+                )))
             }
             OutOfRange::Zero => Ok(Quantity::zero()),
             OutOfRange::Error => {
                 let (lo, hi) = self.axis.bounds();
-                Err(GridError::OutOfRange { axis: "x", value: xv, lo, hi })
+                Err(GridError::OutOfRange {
+                    axis: "x",
+                    value: xv,
+                    lo,
+                    hi,
+                })
             }
         }
     }
@@ -186,12 +203,9 @@ mod tests {
 
     #[test]
     fn zero_policy_returns_zero() {
-        let grid = Grid1D::<Nanometer, Ratio>::from_sorted(
-            &[400.0, 500.0],
-            &[2.0, 4.0],
-            OutOfRange::Zero,
-        )
-        .unwrap();
+        let grid =
+            Grid1D::<Nanometer, Ratio>::from_sorted(&[400.0, 500.0], &[2.0, 4.0], OutOfRange::Zero)
+                .unwrap();
 
         let value = grid.interp_at(Quantity::<Nanometer>::new(300.0));
         assert_eq!(value.value(), 0.0);

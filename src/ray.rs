@@ -77,7 +77,11 @@ impl<U: LengthUnit> RaySegment<U> {
     /// Creates a new ray segment.
     #[must_use]
     pub fn new(t_min: Quantity<U>, t_max: Quantity<U>) -> Self {
-        let (t_min, t_max) = if t_min <= t_max { (t_min, t_max) } else { (t_max, t_min) };
+        let (t_min, t_max) = if t_min <= t_max {
+            (t_min, t_max)
+        } else {
+            (t_max, t_min)
+        };
         Self { t_min, t_max }
     }
 

@@ -87,7 +87,11 @@ impl<U: LengthUnit> OpticalCoefficients<U> {
     #[must_use]
     pub fn new(sigma_a: f64, sigma_s: f64) -> Self {
         let sigma_t = sigma_a + sigma_s;
-        let ssa = if sigma_t == 0.0 { 0.0 } else { sigma_s / sigma_t };
+        let ssa = if sigma_t == 0.0 {
+            0.0
+        } else {
+            sigma_s / sigma_t
+        };
         Self {
             sigma_a: Quantity::new(sigma_a),
             sigma_s: Quantity::new(sigma_s),
@@ -137,7 +141,11 @@ impl<U: LengthUnit> OpticalCoefficients<U> {
 /// ```
 pub trait Medium<C: ReferenceCenter, F: ReferenceFrame, U: LengthUnit> {
     /// Returns optical coefficients at a position and wavelength.
-    fn coefficients(&self, p: Position<C, F, U>, wavelength: qtty::length::Nanometers) -> OpticalCoefficients<U>;
+    fn coefficients(
+        &self,
+        p: Position<C, F, U>,
+        wavelength: qtty::length::Nanometers,
+    ) -> OpticalCoefficients<U>;
 }
 
 /// Spatially uniform medium with wavelength-independent coefficients.
@@ -176,8 +184,14 @@ impl<U: LengthUnit> HomogeneousMedium<U> {
     }
 }
 
-impl<C: ReferenceCenter, F: ReferenceFrame, U: LengthUnit> Medium<C, F, U> for HomogeneousMedium<U> {
-    fn coefficients(&self, _p: Position<C, F, U>, _wavelength: qtty::length::Nanometers) -> OpticalCoefficients<U> {
+impl<C: ReferenceCenter, F: ReferenceFrame, U: LengthUnit> Medium<C, F, U>
+    for HomogeneousMedium<U>
+{
+    fn coefficients(
+        &self,
+        _p: Position<C, F, U>,
+        _wavelength: qtty::length::Nanometers,
+    ) -> OpticalCoefficients<U> {
         OpticalCoefficients::new(self.sigma_a, self.sigma_s)
     }
 }

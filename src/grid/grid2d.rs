@@ -127,7 +127,10 @@ impl<X: Unit, Y: Unit, V: Unit> Grid2D<X, Y, V> {
         let ny = ys.len();
         let expected = nx * ny;
         if expected != values.len() {
-            return Err(GridError::ShapeMismatch { expected, got: values.len() });
+            return Err(GridError::ShapeMismatch {
+                expected,
+                got: values.len(),
+            });
         }
         Ok(Self {
             xs: xs.to_vec().into_boxed_slice(),
@@ -172,13 +175,19 @@ impl<X: Unit, Y: Unit, V: Unit> Grid2D<X, Y, V> {
         }
         for (i, &v) in ys_desc.iter().enumerate() {
             if !v.is_finite() {
-                return Err(GridError::NonFinite { axis: "y", index: i });
+                return Err(GridError::NonFinite {
+                    axis: "y",
+                    index: i,
+                });
             }
         }
         // Validate strictly descending
         for i in 1..ny {
             if ys_desc[i] >= ys_desc[i - 1] {
-                return Err(GridError::NotMonotonic { axis: "y", at_index: i });
+                return Err(GridError::NotMonotonic {
+                    axis: "y",
+                    at_index: i,
+                });
             }
         }
         // Validate uniform step (bit-exact IEEE 754 comparison matching siderust parity)
@@ -186,12 +195,19 @@ impl<X: Unit, Y: Unit, V: Unit> Grid2D<X, Y, V> {
         for i in 1..ny {
             let got = ys_desc[i - 1] - ys_desc[i];
             if got != step {
-                return Err(GridError::NonUniformStep { axis: "y", expected: step, got });
+                return Err(GridError::NonUniformStep {
+                    axis: "y",
+                    expected: step,
+                    got,
+                });
             }
         }
         let expected = nx * ny;
         if expected != values.len() {
-            return Err(GridError::ShapeMismatch { expected, got: values.len() });
+            return Err(GridError::ShapeMismatch {
+                expected,
+                got: values.len(),
+            });
         }
         // Reverse y-axis to ascending but keep rows in their original descending order.
         // The reflection y_internal = (ys_desc[0] + ys_desc[ny-1]) - y_user maps user
@@ -230,7 +246,12 @@ impl<X: Unit, Y: Unit, V: Unit> Grid2D<X, Y, V> {
 
     /// Interpolates a value at `(x, y)`, returning an error when `OutOfRange::Error` is active.
     pub fn try_interp_at(&self, x: Quantity<X>, y: Quantity<Y>) -> Result<Quantity<V>, GridError> {
-        Ok(Quantity::new(self.eval(x.value(), y.value(), self.out_of_range, self.out_of_range)?))
+        Ok(Quantity::new(self.eval(
+            x.value(),
+            y.value(),
+            self.out_of_range,
+            self.out_of_range,
+        )?))
     }
 
     /// Interpolates a value at `(x, y)`, overriding the stored out-of-range policy per axis.
@@ -241,7 +262,12 @@ impl<X: Unit, Y: Unit, V: Unit> Grid2D<X, Y, V> {
         oor_x: OutOfRange,
         oor_y: OutOfRange,
     ) -> Result<Quantity<V>, GridError> {
-        Ok(Quantity::new(self.eval(x.value(), y.value(), oor_x, oor_y)?))
+        Ok(Quantity::new(self.eval(
+            x.value(),
+            y.value(),
+            oor_x,
+            oor_y,
+        )?))
     }
 
     /// Appends a constant-value region.
@@ -288,7 +314,13 @@ impl<X: Unit, Y: Unit, V: Unit> Grid2D<X, Y, V> {
         self.provenance.as_ref()
     }
 
-    fn eval(&self, xv: f64, yv: f64, oor_x: OutOfRange, oor_y: OutOfRange) -> Result<f64, GridError> {
+    fn eval(
+        &self,
+        xv: f64,
+        yv: f64,
+        oor_x: OutOfRange,
+        oor_y: OutOfRange,
+    ) -> Result<f64, GridError> {
         // Constant regions are checked in the user's original (possibly reflected) y coordinates
         for region in &self.regions {
             if region.contains(xv, yv) {
@@ -360,7 +392,10 @@ mod tests {
         )
         .unwrap();
 
-        let value = grid.interp_at(Quantity::<Nanometer>::new(450.0), Quantity::<Radian>::new(0.5));
+        let value = grid.interp_at(
+            Quantity::<Nanometer>::new(450.0),
+            Quantity::<Radian>::new(0.5),
+        );
         assert_eq!(value.value(), 2.5);
     }
 
@@ -381,12 +416,26 @@ mod tests {
         .unwrap();
 
         // At y=0 (first row): lerp(V(400,0)=1, V(500,0)=2, 0.5) = 1.5
-        let v = grid.interp_at(Quantity::<Nanometer>::new(450.0), Quantity::<Radian>::new(0.0));
-        assert!((v.value() - 1.5).abs() < 1e-12, "expected 1.5, got {}", v.value());
+        let v = grid.interp_at(
+            Quantity::<Nanometer>::new(450.0),
+            Quantity::<Radian>::new(0.0),
+        );
+        assert!(
+            (v.value() - 1.5).abs() < 1e-12,
+            "expected 1.5, got {}",
+            v.value()
+        );
 
         // At y=1 (second row): lerp(V(400,1)=3, V(500,1)=4, 0.5) = 3.5
-        let v = grid.interp_at(Quantity::<Nanometer>::new(450.0), Quantity::<Radian>::new(1.0));
-        assert!((v.value() - 3.5).abs() < 1e-12, "expected 3.5, got {}", v.value());
+        let v = grid.interp_at(
+            Quantity::<Nanometer>::new(450.0),
+            Quantity::<Radian>::new(1.0),
+        );
+        assert!(
+            (v.value() - 3.5).abs() < 1e-12,
+            "expected 3.5, got {}",
+            v.value()
+        );
     }
 
     #[test]
@@ -400,10 +449,26 @@ mod tests {
         .unwrap();
 
         // V(400,0)=10, V(500,0)=20, V(400,1)=30, V(500,1)=40
-        assert_eq!(grid.interp_at(Quantity::new(400.0), Quantity::new(0.0)).value(), 10.0);
-        assert_eq!(grid.interp_at(Quantity::new(500.0), Quantity::new(0.0)).value(), 20.0);
-        assert_eq!(grid.interp_at(Quantity::new(400.0), Quantity::new(1.0)).value(), 30.0);
-        assert_eq!(grid.interp_at(Quantity::new(500.0), Quantity::new(1.0)).value(), 40.0);
+        assert_eq!(
+            grid.interp_at(Quantity::new(400.0), Quantity::new(0.0))
+                .value(),
+            10.0
+        );
+        assert_eq!(
+            grid.interp_at(Quantity::new(500.0), Quantity::new(0.0))
+                .value(),
+            20.0
+        );
+        assert_eq!(
+            grid.interp_at(Quantity::new(400.0), Quantity::new(1.0))
+                .value(),
+            30.0
+        );
+        assert_eq!(
+            grid.interp_at(Quantity::new(500.0), Quantity::new(1.0))
+                .value(),
+            40.0
+        );
     }
 
     #[test]
@@ -450,10 +515,14 @@ mod tests {
         .unwrap()
         .with_constant_region(ConstantRegion::lower_corner(420.0, 0.3, 0.0));
 
-        let v = grid.interp_at(Quantity::new(410.0), Quantity::new(0.1)).value();
+        let v = grid
+            .interp_at(Quantity::new(410.0), Quantity::new(0.1))
+            .value();
         assert_eq!(v, 0.0, "constant region should return 0.0");
 
-        let v = grid.interp_at(Quantity::new(450.0), Quantity::new(0.5)).value();
+        let v = grid
+            .interp_at(Quantity::new(450.0), Quantity::new(0.5))
+            .value();
         assert_ne!(v, 0.0, "outside region should interpolate normally");
     }
 }
