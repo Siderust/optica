@@ -174,12 +174,12 @@ impl<X: Unit, Y: Unit> SampledSpectrum<X, Y> {
             OutOfRange::ClampToEndpoints => Ok(Some(self.axis.locate(x))),
             OutOfRange::Zero => Ok(None),
             OutOfRange::Error if strict_error => {
-                let (min, max) = self.axis.bounds();
+                let (lo, hi) = self.axis.bounds();
                 Err(GridError::OutOfRange {
-                    axis: 0,
+                    axis: "wavelength",
                     value: x,
-                    min,
-                    max,
+                    lo,
+                    hi,
                 })
             }
             OutOfRange::Error => Ok(Some(self.axis.locate(x))),

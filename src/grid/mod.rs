@@ -10,8 +10,8 @@
 //!
 //! - Standard linear, bilinear, and trilinear interpolation formulas.
 
+pub mod algo;
 pub mod axis;
-pub(crate) mod algo;
 pub mod error;
 pub mod grid1d;
 pub mod grid2d;
@@ -20,8 +20,29 @@ pub mod grid3d;
 pub use axis::Axis;
 pub use error::GridError;
 pub use grid1d::Grid1D;
-pub use grid2d::Grid2D;
+pub use grid2d::{ConstantRegion, Grid2D};
 pub use grid3d::Grid3D;
+
+/// Axis monotonicity direction for direction-aware interpolation kernels.
+///
+/// Used by [`algo`] functions and [`Grid2D`]/[`Grid3D`] constructors that accept
+/// both ascending and descending axis data.
+///
+/// # Examples
+///
+/// ```rust
+/// use optica::grid::AxisDirection;
+///
+/// let dir = AxisDirection::Ascending;
+/// assert_ne!(dir, AxisDirection::Descending);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AxisDirection {
+    /// Values increase with index.
+    Ascending,
+    /// Values decrease with index.
+    Descending,
+}
 
 /// Policy for interpolation values requested outside the grid's range.
 ///

@@ -78,7 +78,7 @@ impl Axis {
     /// assert!(axis.validate().is_ok());
     /// ```
     pub fn validate(&self) -> Result<(), GridError> {
-        self.validate_for_axis(0)
+        self.validate_for_axis("axis")
     }
 
     /// Constructs a validated uniform axis.
@@ -113,17 +113,17 @@ impl Axis {
         Ok(axis)
     }
 
-    pub(crate) fn validate_for_axis(&self, axis: usize) -> Result<(), GridError> {
+    pub(crate) fn validate_for_axis(&self, name: &'static str) -> Result<(), GridError> {
         match self {
             Self::Uniform { start, step, count } => {
                 if *count < 2 {
-                    return Err(GridError::TooFewPoints { axis, got: *count });
+                    return Err(GridError::TooFewSamples { axis: name, len: *count });
                 }
                 if !start.is_finite() {
-                    return Err(GridError::NonFinite { axis, index: 0 });
+                    return Err(GridError::NonFinite { axis: name, index: 0 });
                 }
                 if !step.is_finite() {
-                    return Err(GridError::NonFinite { axis, index: 1 });
+                    return Err(GridError::NonFinite { axis: name, index: 1 });
                 }
                 if *step <= 0.0 {
                     return Err(GridError::NonPositiveStep { step: *step });
@@ -132,14 +132,14 @@ impl Axis {
             }
             Self::NonUniform(xs) => {
                 if xs.len() < 2 {
-                    return Err(GridError::TooFewPoints { axis, got: xs.len() });
+                    return Err(GridError::TooFewSamples { axis: name, len: xs.len() });
                 }
                 for (index, value) in xs.iter().copied().enumerate() {
                     if !value.is_finite() {
-                        return Err(GridError::NonFinite { axis, index });
+                        return Err(GridError::NonFinite { axis: name, index });
                     }
                     if index > 0 && value <= xs[index - 1] {
-                        return Err(GridError::NotMonotone { axis, index });
+                        return Err(GridError::NotMonotonic { axis: name, at_index: index });
                     }
                 }
                 Ok(())
@@ -186,6 +186,6 @@ mod tests {
     #[test]
     fn non_uniform_axis_rejects_unsorted_values() {
         let error = Axis::non_uniform([1.0, 1.0, 2.0]).unwrap_err();
-        assert!(matches!(error, GridError::NotMonotone { .. }));
+        assert!(matches!(error, GridError::NotMonotonic { .. }));
     }
 }

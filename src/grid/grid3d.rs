@@ -8,12 +8,13 @@ use core::marker::PhantomData;
 use qtty::{Quantity, Unit};
 
 use crate::data::Provenance;
-use crate::grid::algo::trilerp;
-use crate::grid::{Axis, GridError, OutOfRange};
+use crate::grid::algo;
+use crate::grid::{GridError, OutOfRange};
 
 /// Three-dimensional lookup table over typed `x`, `y`, and `z` axes.
 ///
-/// Values are stored in row-major order as `values[ix * (ny * nz) + iy * nz + iz]`.
+/// Values are stored in z-outermost, y-middle, x-innermost order:
+/// `values[(iz * ny + iy) * nx + ix]`.
 ///
 /// # Examples
 ///
@@ -21,6 +22,8 @@ use crate::grid::{Axis, GridError, OutOfRange};
 /// use optica::grid::{Grid3D, OutOfRange};
 /// use qtty::{Quantity, unit::{Kilometer, Nanometer, Radian, Ratio}};
 ///
+/// // 2×2×2 grid; storage: (iz*2+iy)*2+ix
+/// // iz=0,iy=0: [0, 2]; iz=0,iy=1: [4, 6]; iz=1,iy=0: [8, 10]; iz=1,iy=1: [12, 14]
 /// let grid = Grid3D::<Nanometer, Radian, Kilometer, Ratio>::from_raw_row_major(
 ///     &[400.0, 500.0],
 ///     &[0.0, 1.0],
@@ -39,9 +42,9 @@ use crate::grid::{Axis, GridError, OutOfRange};
 /// ```
 #[derive(Debug, Clone)]
 pub struct Grid3D<X: Unit, Y: Unit, Z: Unit, V: Unit> {
-    x_axis: Axis,
-    y_axis: Axis,
-    z_axis: Axis,
+    x_axis: crate::grid::Axis,
+    y_axis: crate::grid::Axis,
+    z_axis: crate::grid::Axis,
     values: Box<[f64]>,
     out_of_range: OutOfRange,
     provenance: Option<Provenance>,
@@ -51,7 +54,14 @@ pub struct Grid3D<X: Unit, Y: Unit, Z: Unit, V: Unit> {
 type Locate3 = (usize, f64, usize, f64, usize, f64);
 
 impl<X: Unit, Y: Unit, Z: Unit, V: Unit> Grid3D<X, Y, Z, V> {
-    /// Builds a validated 3-D grid from sorted axes and row-major values.
+    /// Builds a validated 3-D grid from ascending axes and z-outermost values.
+    ///
+    /// Storage convention: `values[(iz * ny + iy) * nx + ix]`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`GridError`] when any axis is invalid or the values length does not match
+    /// `xs.len() * ys.len() * zs.len()`.
     pub fn from_raw_row_major(
         xs: &[f64],
         ys: &[f64],
@@ -59,18 +69,15 @@ impl<X: Unit, Y: Unit, Z: Unit, V: Unit> Grid3D<X, Y, Z, V> {
         values: &[f64],
         oor: OutOfRange,
     ) -> Result<Self, GridError> {
-        let x_axis = Axis::NonUniform(xs.to_vec().into_boxed_slice());
-        x_axis.validate_for_axis(0)?;
-        let y_axis = Axis::NonUniform(ys.to_vec().into_boxed_slice());
-        y_axis.validate_for_axis(1)?;
-        let z_axis = Axis::NonUniform(zs.to_vec().into_boxed_slice());
-        z_axis.validate_for_axis(2)?;
+        let x_axis = crate::grid::Axis::NonUniform(xs.to_vec().into_boxed_slice());
+        x_axis.validate_for_axis("x")?;
+        let y_axis = crate::grid::Axis::NonUniform(ys.to_vec().into_boxed_slice());
+        y_axis.validate_for_axis("y")?;
+        let z_axis = crate::grid::Axis::NonUniform(zs.to_vec().into_boxed_slice());
+        z_axis.validate_for_axis("z")?;
         let expected = x_axis.len() * y_axis.len() * z_axis.len();
         if expected != values.len() {
-            return Err(GridError::ShapeMismatch {
-                expected,
-                got: values.len(),
-            });
+            return Err(GridError::ShapeMismatch { expected, got: values.len() });
         }
         Ok(Self {
             x_axis,
@@ -108,9 +115,42 @@ impl<X: Unit, Y: Unit, Z: Unit, V: Unit> Grid3D<X, Y, Z, V> {
         z: Quantity<Z>,
     ) -> Result<Quantity<V>, GridError> {
         match self.locate_query(x.value(), y.value(), z.value(), true)? {
-            Some((ix, tx, iy, ty, iz, tz)) => Ok(Quantity::new(self.interpolate(ix, tx, iy, ty, iz, tz))),
+            Some((ix, tx, iy, ty, iz, tz)) => {
+                Ok(Quantity::new(self.interpolate(ix, tx, iy, ty, iz, tz)))
+            }
             None => Ok(Quantity::zero()),
         }
+    }
+
+    /// Interpolates a value at `(x, y, z)`, overriding the stored out-of-range policy per axis.
+    pub fn interp_at_with(
+        &self,
+        x: Quantity<X>,
+        y: Quantity<Y>,
+        z: Quantity<Z>,
+        oor_x: OutOfRange,
+        oor_y: OutOfRange,
+        oor_z: OutOfRange,
+    ) -> Result<Quantity<V>, GridError> {
+        let xv = x.value();
+        let yv = y.value();
+        let zv = z.value();
+        let (x_lo, x_hi) = self.x_axis.bounds();
+        let (y_lo, y_hi) = self.y_axis.bounds();
+        let (z_lo, z_hi) = self.z_axis.bounds();
+        if !algo::check_oor(xv, x_lo, x_hi, oor_x, "x")? {
+            return Ok(Quantity::zero());
+        }
+        if !algo::check_oor(yv, y_lo, y_hi, oor_y, "y")? {
+            return Ok(Quantity::zero());
+        }
+        if !algo::check_oor(zv, z_lo, z_hi, oor_z, "z")? {
+            return Ok(Quantity::zero());
+        }
+        let (ix, tx) = self.x_axis.locate(xv);
+        let (iy, ty) = self.y_axis.locate(yv);
+        let (iz, tz) = self.z_axis.locate(zv);
+        Ok(Quantity::new(self.interpolate(ix, tx, iy, ty, iz, tz)))
     }
 
     /// Returns the number of samples on the `x` axis.
@@ -157,21 +197,18 @@ impl<X: Unit, Y: Unit, Z: Unit, V: Unit> Grid3D<X, Y, Z, V> {
     }
 
     fn interpolate(&self, ix: usize, tx: f64, iy: usize, ty: f64, iz: usize, tz: f64) -> f64 {
+        let nx = self.nx();
         let ny = self.ny();
-        let nz = self.nz();
-        let base0 = ix * (ny * nz);
-        let base1 = (ix + 1) * (ny * nz);
-        let row0 = iy * nz;
-        let row1 = (iy + 1) * nz;
-        let v000 = self.values[base0 + row0 + iz];
-        let v001 = self.values[base0 + row0 + (iz + 1)];
-        let v010 = self.values[base0 + row1 + iz];
-        let v011 = self.values[base0 + row1 + (iz + 1)];
-        let v100 = self.values[base1 + row0 + iz];
-        let v101 = self.values[base1 + row0 + (iz + 1)];
-        let v110 = self.values[base1 + row1 + iz];
-        let v111 = self.values[base1 + row1 + (iz + 1)];
-        trilerp(v000, v001, v010, v011, v100, v101, v110, v111, tx, ty, tz)
+        let idx = |iz: usize, iy: usize, ix: usize| (iz * ny + iy) * nx + ix;
+        let v000 = self.values[idx(iz, iy, ix)];
+        let v100 = self.values[idx(iz, iy, ix + 1)];
+        let v010 = self.values[idx(iz, iy + 1, ix)];
+        let v110 = self.values[idx(iz, iy + 1, ix + 1)];
+        let v001 = self.values[idx(iz + 1, iy, ix)];
+        let v101 = self.values[idx(iz + 1, iy, ix + 1)];
+        let v011 = self.values[idx(iz + 1, iy + 1, ix)];
+        let v111 = self.values[idx(iz + 1, iy + 1, ix + 1)];
+        algo::trilinear_unit(v000, v100, v010, v110, v001, v101, v011, v111, tx, ty, tz)
     }
 
     fn locate_query(
@@ -201,30 +238,15 @@ impl<X: Unit, Y: Unit, Z: Unit, V: Unit> Grid3D<X, Y, Z, V> {
             OutOfRange::Zero => Ok(None),
             OutOfRange::Error if strict_error => {
                 if !x_in {
-                    let (min, max) = self.x_axis.bounds();
-                    return Err(GridError::OutOfRange {
-                        axis: 0,
-                        value: x,
-                        min,
-                        max,
-                    });
+                    let (lo, hi) = self.x_axis.bounds();
+                    return Err(GridError::OutOfRange { axis: "x", value: x, lo, hi });
                 }
                 if !y_in {
-                    let (min, max) = self.y_axis.bounds();
-                    return Err(GridError::OutOfRange {
-                        axis: 1,
-                        value: y,
-                        min,
-                        max,
-                    });
+                    let (lo, hi) = self.y_axis.bounds();
+                    return Err(GridError::OutOfRange { axis: "y", value: y, lo, hi });
                 }
-                let (min, max) = self.z_axis.bounds();
-                Err(GridError::OutOfRange {
-                    axis: 2,
-                    value: z,
-                    min,
-                    max,
-                })
+                let (lo, hi) = self.z_axis.bounds();
+                Err(GridError::OutOfRange { axis: "z", value: z, lo, hi })
             }
             OutOfRange::Error => {
                 let (ix, tx) = self.x_axis.locate(x);
@@ -241,8 +263,9 @@ mod tests {
     use super::*;
     use qtty::unit::{Kilometer, Nanometer, Radian, Ratio};
 
+    /// Trilinear midpoint — passes regardless of storage layout.
     #[test]
-    fn trilinear_interpolation_works() {
+    fn trilinear_midpoint_works() {
         let grid = Grid3D::<Nanometer, Radian, Kilometer, Ratio>::from_raw_row_major(
             &[400.0, 500.0],
             &[0.0, 1.0],
@@ -258,5 +281,49 @@ mod tests {
             Quantity::<Kilometer>::new(1.0),
         );
         assert_eq!(value.value(), 7.0);
+    }
+
+    /// Discriminative test: verifies `(iz*ny+iy)*nx+ix` storage.
+    ///
+    /// With `values[0..7] = [0,2,4,6,8,10,12,14]` and storage `(iz*2+iy)*2+ix`:
+    ///   iz=0,iy=0: V(400)=0, V(500)=2
+    ///   iz=0,iy=1: V(400)=4, V(500)=6
+    ///   iz=1,iy=0: V(400)=8, V(500)=10
+    ///   iz=1,iy=1: V(400)=12, V(500)=14
+    /// At (400, 0, 0): must return 0; at (500, 0, 0): must return 2.
+    #[test]
+    fn storage_is_z_outer_y_mid_x_inner() {
+        let grid = Grid3D::<Nanometer, Radian, Kilometer, Ratio>::from_raw_row_major(
+            &[400.0, 500.0],
+            &[0.0, 1.0],
+            &[0.0, 2.0],
+            &[0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0],
+            OutOfRange::ClampToEndpoints,
+        )
+        .unwrap();
+
+        // iz=0, iy=0: row [0, 2] → at x=400 → 0, at x=500 → 2
+        assert_eq!(
+            grid.interp_at(Quantity::new(400.0), Quantity::new(0.0), Quantity::new(0.0))
+                .value(),
+            0.0
+        );
+        assert_eq!(
+            grid.interp_at(Quantity::new(500.0), Quantity::new(0.0), Quantity::new(0.0))
+                .value(),
+            2.0
+        );
+        // iz=0, iy=1: row [4, 6] → at x=400 → 4
+        assert_eq!(
+            grid.interp_at(Quantity::new(400.0), Quantity::new(1.0), Quantity::new(0.0))
+                .value(),
+            4.0
+        );
+        // iz=1, iy=0: row [8, 10] → at x=400 → 8
+        assert_eq!(
+            grid.interp_at(Quantity::new(400.0), Quantity::new(0.0), Quantity::new(2.0))
+                .value(),
+            8.0
+        );
     }
 }

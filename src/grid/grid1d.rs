@@ -96,6 +96,30 @@ impl<X: Unit, V: Unit> Grid1D<X, V> {
         }
     }
 
+    /// Interpolates a value at `x`, overriding the stored out-of-range policy for this call.
+    pub fn interp_at_with(
+        &self,
+        x: Quantity<X>,
+        oor: OutOfRange,
+    ) -> Result<Quantity<V>, GridError> {
+        let xv = x.value();
+        if self.axis.contains(xv) {
+            let (low, t) = self.axis.locate(xv);
+            return Ok(Quantity::new(lerp(self.values[low], self.values[low + 1], t)));
+        }
+        match oor {
+            OutOfRange::ClampToEndpoints => {
+                let (low, t) = self.axis.locate(xv);
+                Ok(Quantity::new(lerp(self.values[low], self.values[low + 1], t)))
+            }
+            OutOfRange::Zero => Ok(Quantity::zero()),
+            OutOfRange::Error => {
+                let (lo, hi) = self.axis.bounds();
+                Err(GridError::OutOfRange { axis: "x", value: xv, lo, hi })
+            }
+        }
+    }
+
     /// Returns the number of samples in the grid.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -129,12 +153,12 @@ impl<X: Unit, V: Unit> Grid1D<X, V> {
             OutOfRange::ClampToEndpoints => Ok(Some(self.axis.locate(x))),
             OutOfRange::Zero => Ok(None),
             OutOfRange::Error if strict_error => {
-                let (min, max) = self.axis.bounds();
+                let (lo, hi) = self.axis.bounds();
                 Err(GridError::OutOfRange {
-                    axis: 0,
+                    axis: "x",
                     value: x,
-                    min,
-                    max,
+                    lo,
+                    hi,
                 })
             }
             OutOfRange::Error => Ok(Some(self.axis.locate(x))),

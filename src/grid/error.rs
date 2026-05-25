@@ -10,42 +10,42 @@
 /// ```rust
 /// use optica::grid::GridError;
 ///
-/// let error = GridError::TooFewPoints { axis: 0, got: 1 };
-/// assert!(error.to_string().contains("at least 2 points"));
+/// let error = GridError::TooFewSamples { axis: "x", len: 1 };
+/// assert!(error.to_string().contains("too few"));
 /// ```
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum GridError {
-    /// An axis does not contain enough samples for interpolation.
-    #[error("axis {axis} must have at least 2 points (got {got})")]
-    TooFewPoints {
-        /// Zero-based axis index.
-        axis: usize,
-        /// Number of points supplied for the axis.
-        got: usize,
-    },
-    /// An axis is not strictly increasing.
-    #[error("axis {axis} is not strictly monotone increasing at index {index}")]
-    NotMonotone {
-        /// Zero-based axis index.
-        axis: usize,
-        /// Index where monotonicity fails.
-        index: usize,
-    },
-    /// An axis contains a non-finite value.
-    #[error("axis {axis} contains non-finite value at index {index}")]
-    NonFinite {
-        /// Zero-based axis index.
-        axis: usize,
-        /// Index of the offending value.
-        index: usize,
-    },
-    /// The flattened value buffer has the wrong length.
+    /// The value buffer length does not match the product of the axis lengths.
     #[error("expected {expected} values, got {got}")]
     ShapeMismatch {
-        /// Expected number of values from the axis shape.
+        /// Expected count derived from the axis dimensions.
         expected: usize,
-        /// Actual number of values supplied.
+        /// Actual count supplied.
         got: usize,
+    },
+    /// An axis has fewer than two samples (interpolation requires at least two).
+    #[error("{axis} axis has too few samples ({len}); need ≥ 2")]
+    TooFewSamples {
+        /// Name of the undersampled axis.
+        axis: &'static str,
+        /// Number of samples present.
+        len: usize,
+    },
+    /// An axis is not strictly monotonic (either ascending or descending).
+    #[error("{axis} axis is not strictly monotonic at index {at_index}")]
+    NotMonotonic {
+        /// Axis name.
+        axis: &'static str,
+        /// Index where monotonicity fails.
+        at_index: usize,
+    },
+    /// An axis contains a non-finite value.
+    #[error("{axis} axis contains non-finite value at index {index}")]
+    NonFinite {
+        /// Axis name.
+        axis: &'static str,
+        /// Index of the offending value.
+        index: usize,
     },
     /// A uniform axis used a non-positive step.
     #[error("step must be positive (got {step})")]
@@ -53,16 +53,26 @@ pub enum GridError {
         /// Invalid step size.
         step: f64,
     },
+    /// The y-axis supplied to a y-descending constructor is not uniformly spaced.
+    #[error("{axis} axis is not uniformly spaced: expected step {expected}, got {got}")]
+    NonUniformStep {
+        /// Axis name.
+        axis: &'static str,
+        /// Expected step (from the first pair).
+        expected: f64,
+        /// Observed deviating step.
+        got: f64,
+    },
     /// A query point lies outside an axis range while `OutOfRange::Error` is active.
-    #[error("query value {value} is outside axis {axis} range [{min}, {max}]")]
+    #[error("{axis} value {value} is outside axis range [{lo}, {hi}]")]
     OutOfRange {
-        /// Zero-based axis index.
-        axis: usize,
+        /// Axis name.
+        axis: &'static str,
         /// Queried raw coordinate value.
         value: f64,
-        /// Minimum valid value on the axis.
-        min: f64,
-        /// Maximum valid value on the axis.
-        max: f64,
+        /// Lower bound of the valid axis range.
+        lo: f64,
+        /// Upper bound of the valid axis range.
+        hi: f64,
     },
 }

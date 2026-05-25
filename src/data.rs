@@ -52,7 +52,7 @@ pub enum DataSource {
 /// ```rust
 /// use optica::data::Provenance;
 ///
-/// let provenance = Provenance::cited("bodhaine1999", Some("10.1364/AO.38.1854"))
+/// let provenance = Provenance::cited("bodhaine1999")
 ///     .with_version("v1")
 ///     .with_notes("Derived from published coefficients.");
 ///
@@ -123,21 +123,18 @@ impl Provenance {
     /// ```rust
     /// use optica::data::{DataSource, Provenance};
     ///
-    /// let provenance = Provenance::cited("bodhaine1999", None::<String>);
+    /// let provenance = Provenance::cited("bodhaine1999");
     /// assert!(matches!(
     ///     provenance.source,
     ///     Some(DataSource::LiteratureCitation { .. })
     /// ));
     /// ```
     #[must_use]
-    pub fn cited<D>(bibkey: impl Into<String>, doi: Option<D>) -> Self
-    where
-        D: Into<String>,
-    {
+    pub fn cited(bibkey: impl Into<String>) -> Self {
         Self {
             source: Some(DataSource::LiteratureCitation {
                 bibkey: bibkey.into(),
-                doi: doi.map(Into::into),
+                doi: None,
             }),
             ..Self::new()
         }
