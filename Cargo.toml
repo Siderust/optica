@@ -1,0 +1,49 @@
+[package]
+name = "optica"
+version = "0.1.0"
+edition = "2021"
+authors = ["VPRamon <vallespuigramon@gmail.com>"]
+description = "Fast participating-media and optics foundation: typed rays, optical coefficients, phase functions, spectra, and optical-depth integration."
+license = "AGPL-3.0-only"
+readme = "README.md"
+repository = "https://github.com/Siderust/optica"
+keywords = ["optics", "participating-media", "radiometry", "atmosphere", "rendering"]
+categories = ["science", "rendering"]
+
+[features]
+default = ["std"]
+std = ["qtty/std"]
+alloc = ["qtty/alloc"]
+serde = ["dep:serde", "qtty/serde"]
+# astro: reserved for future astronomy-specific adapters (off by default)
+astro = []
+
+[dependencies]
+qtty = { version = "0.8", default-features = false, features = ["radiometry"] }
+affn = { version = "0.7", default-features = false }
+thiserror = { version = "2", default-features = false }
+serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
+
+[dev-dependencies]
+approx = "0.5"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+unreachable_pub = "warn"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+print_stdout = "warn"
+
+[lints.rustdoc]
+broken_intra_doc_links = "deny"
+
+[patch.crates-io]
+qtty-core   = { path = "../qtty/qtty-core" }
+qtty-derive = { path = "../qtty/qtty-derive" }
+qtty        = { path = "../qtty/qtty" }
+affn        = { path = "../affn" }
