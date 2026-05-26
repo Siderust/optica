@@ -9,6 +9,55 @@ pre-1.0 minor releases may contain breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- `#![cfg_attr(not(feature = "std"), no_std)]`: the crate now builds without `std`.
+  Heap-using modules (`data`, `grid`, `phase`, `prelude`, `spectrum`) are gated
+  behind the `alloc` feature; `medium`, `ray`, `scatter`, `transport` are always
+  available.
+- `serde` feature: derives `Serialize`/`Deserialize` on public data, error, and
+  policy types (`Provenance`, `DataSource`, `Axis`, `AxisDirection`,
+  `ConstantRegion`, `OutOfRange`, `GridError`, `Interpolation`, `SpectrumError`,
+  `MieParams`, `ScatterError`, `OpticalCoefficientError`, `PhaseError`,
+  `IntegrationOpts`, `IntegrationMethod`, `TransportError`). `TableSource`
+  derives only `Serialize` (it borrows `&'static` data).
+- `medium::InverseLength<U>` type alias (`Per<Ratio, U>`) for typed reciprocal
+  lengths used by optical coefficients.
+- `medium::OpticalCoefficientError` and `OpticalCoefficients::try_new`,
+  `HomogeneousMedium::try_new`: fallible, validated constructors.
+- `phase::PhaseError`, validated `HenyeyGreensteinPhaseFunction::try_new` and
+  `DoubleHenyeyGreensteinPhaseFunction::try_new`.
+- `scatter::ScatterError`, `MieParams::try_new`,
+  `scatter::try_rayleigh_optical_depth_bodhaine99`,
+  `scatter::try_mie_optical_depth`.
+- `transport::IntegrationMethod` enum (`Midpoint`, `Trapezoidal`, `Simpson`,
+  `GaussLegendre2`, `GaussLegendre4`) and `transport::TransportError`.
+  `IntegrationOpts` now carries a `method` field. New
+  `transport::try_integrate_optical_depth` validates inputs.
+- `spectrum::SampledSpectrum`: `domain`, `contains`, `overlap_domain`,
+  `resample_onto`, `normalize_area`, `normalize_peak`, `map_values`, `zip_with`.
+- `grid::Axis::bounds`, `Grid2D::x_bounds`/`y_bounds`/`domain`,
+  `Grid3D::x_bounds`/`y_bounds`/`z_bounds`/`domain`.
+- `spectrum::SpectrumError::InvalidValue` variant. Enum marked `#[non_exhaustive]`.
+- `tests/serde_roundtrip.rs`: JSON round-trip smoke tests for serialized types.
+
+### Changed (Breaking)
+
+- `HomogeneousMedium::new`, `OpticalCoefficients::new`,
+  `HenyeyGreensteinPhaseFunction { g: … }` literal construction,
+  `DoubleHenyeyGreensteinPhaseFunction { … }` literal construction,
+  `MieParams::new`, `rayleigh_optical_depth_bodhaine99`, and `mie_optical_depth`
+  are removed. Use the corresponding `try_new`/`try_*` variants.
+- `PhaseModel::HenyeyGreenstein { g }` enum variant is now
+  `PhaseModel::HenyeyGreenstein(HenyeyGreensteinPhaseFunction)`; the wrapped
+  function carries its own validated asymmetry parameter.
+- The fake unit markers `AbsorptionCoeff`, `ScatteringCoeff`, and
+  `ExtinctionCoeff` are removed. Coefficients now use the real reciprocal-length
+  unit `InverseLength<U> = Per<Ratio, U>`.
+- `IntegrationOpts { n_steps }` literal construction must now supply `method`;
+  use `IntegrationOpts::default()` or `IntegrationOpts::new(n_steps, method)`.
+- `SpectrumError` is now `#[non_exhaustive]`.
+
 ## [0.1.0] — 2026-05-26
 
 Initial release preparation.

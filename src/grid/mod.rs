@@ -37,6 +37,7 @@ pub use grid3d::Grid3D;
 /// assert_ne!(dir, AxisDirection::Descending);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum AxisDirection {
     /// Values increase with index.
     Ascending,
@@ -54,6 +55,7 @@ pub enum AxisDirection {
 /// assert_eq!(OutOfRange::default(), OutOfRange::ClampToEndpoints);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum OutOfRange {
     /// Clamp to the nearest endpoint value (default, fastest).
     #[default]

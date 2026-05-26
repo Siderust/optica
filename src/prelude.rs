@@ -24,16 +24,18 @@
 pub use crate::data::{DataSource, Provenance, TableSource};
 pub use crate::grid::{Axis, Grid1D, Grid2D, Grid3D, GridError, OutOfRange};
 pub use crate::medium::{
-    AbsorptionCoeff, ExtinctionCoeff, HomogeneousMedium, Medium, OpticalCoefficients,
-    ScatteringCoeff,
+    HomogeneousMedium, InverseLength, Medium, OpticalCoefficientError, OpticalCoefficients,
 };
 pub use crate::phase::{
-    rayleigh_phase, DoubleHenyeyGreensteinPhaseFunction, HenyeyGreensteinPhaseFunction,
+    rayleigh_phase, DoubleHenyeyGreensteinPhaseFunction, HenyeyGreensteinPhaseFunction, PhaseError,
     PhaseFunction, PhaseModel, PhaseTable, RayleighPhaseFunction, ScatteringFactor,
 };
 pub use crate::ray::{Ray, RaySegment};
-pub use crate::scatter::{mie_optical_depth, rayleigh_optical_depth_bodhaine99, MieParams};
+pub use crate::scatter::{
+    try_mie_optical_depth, try_rayleigh_optical_depth_bodhaine99, MieParams, ScatterError,
+};
 pub use crate::spectrum::{Interpolation, SampledSpectrum};
 pub use crate::transport::{
-    integrate_optical_depth, transmittance, van_rhijn_factor, IntegrationOpts,
+    integrate_optical_depth, transmittance, try_integrate_optical_depth, van_rhijn_factor,
+    IntegrationMethod, IntegrationOpts, TransportError,
 };

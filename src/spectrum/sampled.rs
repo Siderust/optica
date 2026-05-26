@@ -20,6 +20,8 @@
 
 use core::marker::PhantomData;
 
+use alloc::{boxed::Box, vec::Vec};
+
 use qtty::{DimMul, Dimension, Prod, Quantity, Unit};
 
 use crate::data::Provenance;
@@ -229,6 +231,285 @@ impl<X: Unit, Y: Unit> SampledSpectrum<X, Y> {
             }
             _ => algo::interp(&self.xs, &self.ys, x, self.interp, oor),
         }
+    }
+
+    /// Inclusive sampled domain as `(x_min, x_max)`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use optica::grid::OutOfRange;
+    /// use optica::spectrum::{Interpolation, SampledSpectrum};
+    /// use qtty::unit::{Nanometer, Ratio};
+    ///
+    /// let s = SampledSpectrum::<Nanometer, Ratio>::from_sorted(
+    ///     &[400.0, 500.0, 600.0],
+    ///     &[0.1, 0.2, 0.3],
+    ///     Interpolation::Linear,
+    ///     OutOfRange::ClampToEndpoints,
+    /// ).unwrap();
+    /// let (lo, hi) = s.domain();
+    /// assert_eq!(lo.value(), 400.0);
+    /// assert_eq!(hi.value(), 600.0);
+    /// ```
+    #[inline]
+    pub fn domain(&self) -> (Quantity<X>, Quantity<X>) {
+        (
+            Quantity::<X>::new(self.xs[0]),
+            Quantity::<X>::new(self.xs[self.xs.len() - 1]),
+        )
+    }
+
+    /// Returns whether `x` is inside the inclusive sampled domain.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use optica::grid::OutOfRange;
+    /// use optica::spectrum::{Interpolation, SampledSpectrum};
+    /// use qtty::Quantity;
+    /// use qtty::unit::{Nanometer, Ratio};
+    ///
+    /// let s = SampledSpectrum::<Nanometer, Ratio>::from_sorted(
+    ///     &[400.0, 500.0],
+    ///     &[0.1, 0.2],
+    ///     Interpolation::Linear,
+    ///     OutOfRange::ClampToEndpoints,
+    /// ).unwrap();
+    /// assert!(s.contains(Quantity::<Nanometer>::new(450.0)));
+    /// assert!(!s.contains(Quantity::<Nanometer>::new(700.0)));
+    /// ```
+    #[inline]
+    pub fn contains(&self, x: Quantity<X>) -> bool {
+        let v = x.value();
+        v >= self.xs[0] && v <= self.xs[self.xs.len() - 1]
+    }
+
+    /// Returns the intersection of two sampled domains as `(lo, hi)`, or `None`
+    /// when they do not overlap.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use optica::grid::OutOfRange;
+    /// use optica::spectrum::{Interpolation, SampledSpectrum};
+    /// use qtty::unit::{Nanometer, Ratio};
+    ///
+    /// let a = SampledSpectrum::<Nanometer, Ratio>::from_sorted(
+    ///     &[400.0, 600.0], &[0.1, 0.2],
+    ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
+    /// ).unwrap();
+    /// let b = SampledSpectrum::<Nanometer, Ratio>::from_sorted(
+    ///     &[500.0, 700.0], &[0.3, 0.4],
+    ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
+    /// ).unwrap();
+    /// let (lo, hi) = a.overlap_domain(&b).unwrap();
+    /// assert_eq!(lo.value(), 500.0);
+    /// assert_eq!(hi.value(), 600.0);
+    /// ```
+    #[must_use]
+    pub fn overlap_domain<Yo: Unit>(
+        &self,
+        other: &SampledSpectrum<X, Yo>,
+    ) -> Option<(Quantity<X>, Quantity<X>)> {
+        let (alo, ahi) = self.domain();
+        let (blo, bhi) = other.domain();
+        let lo = if alo.value() >= blo.value() { alo } else { blo };
+        let hi = if ahi.value() <= bhi.value() { ahi } else { bhi };
+        if lo.value() <= hi.value() {
+            Some((lo, hi))
+        } else {
+            None
+        }
+    }
+
+    /// Resamples `self` onto an explicit set of x-locations.
+    ///
+    /// Each input point is interpolated using the current [`Interpolation`]
+    /// kernel; the produced spectrum uses [`Interpolation::Linear`] with
+    /// [`OutOfRange::ClampToEndpoints`] for downstream querying. Provenance is
+    /// not propagated.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SpectrumError`] when the requested grid violates monotonicity
+    /// or has fewer than two points, or when the source out-of-range policy
+    /// rejects an evaluation.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use optica::grid::OutOfRange;
+    /// use optica::spectrum::{Interpolation, SampledSpectrum};
+    /// use qtty::unit::{Nanometer, Ratio};
+    ///
+    /// let s = SampledSpectrum::<Nanometer, Ratio>::from_sorted(
+    ///     &[400.0, 600.0], &[0.0, 1.0],
+    ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
+    /// ).unwrap();
+    /// let r = s.resample_onto(&[450.0, 550.0]).unwrap();
+    /// assert!((r.ys_raw()[0] - 0.25).abs() < 1e-12);
+    /// assert!((r.ys_raw()[1] - 0.75).abs() < 1e-12);
+    /// ```
+    pub fn resample_onto(&self, xs: &[f64]) -> Result<Self, SpectrumError> {
+        let mut ys = Vec::with_capacity(xs.len());
+        for &x in xs {
+            ys.push(self.eval(x, self.oor)?);
+        }
+        Self::from_raw(
+            xs.to_vec(),
+            ys,
+            Interpolation::Linear,
+            OutOfRange::ClampToEndpoints,
+            None,
+        )
+    }
+
+    /// Returns a new spectrum scaled so that its trapezoidal integral over the
+    /// sampled domain equals 1 (in raw axis units).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SpectrumError::InvalidValue`] when the integral is zero or
+    /// non-finite.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use optica::grid::OutOfRange;
+    /// use optica::spectrum::{Interpolation, SampledSpectrum};
+    /// use qtty::unit::{Nanometer, Ratio};
+    ///
+    /// let s = SampledSpectrum::<Nanometer, Ratio>::from_sorted(
+    ///     &[0.0, 1.0, 2.0], &[1.0, 1.0, 1.0],
+    ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
+    /// ).unwrap();
+    /// let n = s.normalize_area().unwrap();
+    /// // ∫ 1 dx over [0, 2] = 2, so each sample becomes 0.5.
+    /// assert!((n.ys_raw()[0] - 0.5).abs() < 1e-12);
+    /// ```
+    pub fn normalize_area(&self) -> Result<Self, SpectrumError> {
+        let area = algo::trapz(&self.xs, &self.ys);
+        if !area.is_finite() || area == 0.0 {
+            return Err(SpectrumError::InvalidValue {
+                what: alloc::string::String::from("integrated area must be finite and non-zero"),
+            });
+        }
+        let inv = area.recip();
+        let ys: Vec<f64> = self.ys.iter().map(|&y| y * inv).collect();
+        let xs: Vec<f64> = self.xs.to_vec();
+        Self::from_raw(xs, ys, self.interp, self.oor, self.provenance.clone())
+    }
+
+    /// Returns a new spectrum scaled so that its maximum sample equals 1.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SpectrumError::InvalidValue`] when the maximum sample is zero
+    /// or non-finite.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use optica::grid::OutOfRange;
+    /// use optica::spectrum::{Interpolation, SampledSpectrum};
+    /// use qtty::unit::{Nanometer, Ratio};
+    ///
+    /// let s = SampledSpectrum::<Nanometer, Ratio>::from_sorted(
+    ///     &[0.0, 1.0, 2.0], &[1.0, 4.0, 2.0],
+    ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
+    /// ).unwrap();
+    /// let n = s.normalize_peak().unwrap();
+    /// assert!((n.ys_raw()[1] - 1.0).abs() < 1e-12);
+    /// ```
+    pub fn normalize_peak(&self) -> Result<Self, SpectrumError> {
+        let peak = self.ys.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        if !peak.is_finite() || peak == 0.0 {
+            return Err(SpectrumError::InvalidValue {
+                what: alloc::string::String::from("peak value must be finite and non-zero"),
+            });
+        }
+        let inv = peak.recip();
+        let ys: Vec<f64> = self.ys.iter().map(|&y| y * inv).collect();
+        let xs: Vec<f64> = self.xs.to_vec();
+        Self::from_raw(xs, ys, self.interp, self.oor, self.provenance.clone())
+    }
+
+    /// Maps every value through `f`, preserving x-axis and metadata.
+    ///
+    /// `f` must be deterministic and finite-preserving; non-finite outputs will
+    /// be rejected by validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SpectrumError`] when validation of the transformed values fails.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use optica::grid::OutOfRange;
+    /// use optica::spectrum::{Interpolation, SampledSpectrum};
+    /// use qtty::unit::{Nanometer, Ratio};
+    ///
+    /// let s = SampledSpectrum::<Nanometer, Ratio>::from_sorted(
+    ///     &[400.0, 500.0], &[0.1, 0.2],
+    ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
+    /// ).unwrap();
+    /// let s2 = s.map_values(|y| y * 10.0).unwrap();
+    /// assert_eq!(s2.ys_raw(), &[1.0, 2.0]);
+    /// ```
+    pub fn map_values<F>(&self, f: F) -> Result<Self, SpectrumError>
+    where
+        F: Fn(f64) -> f64,
+    {
+        let ys: Vec<f64> = self.ys.iter().map(|&y| f(y)).collect();
+        let xs: Vec<f64> = self.xs.to_vec();
+        Self::from_raw(xs, ys, self.interp, self.oor, self.provenance.clone())
+    }
+
+    /// Combines two spectra sample-by-sample over the union x-grid produced by
+    /// resampling `other` onto `self`'s x-axis.
+    ///
+    /// The output uses `self`'s interpolation and out-of-range policy.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SpectrumError`] when `other` cannot be evaluated at a point in
+    /// `self`'s grid under its own out-of-range policy.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use optica::grid::OutOfRange;
+    /// use optica::spectrum::{Interpolation, SampledSpectrum};
+    /// use qtty::unit::{Nanometer, Ratio};
+    ///
+    /// let a = SampledSpectrum::<Nanometer, Ratio>::from_sorted(
+    ///     &[0.0, 1.0, 2.0], &[1.0, 2.0, 3.0],
+    ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
+    /// ).unwrap();
+    /// let b = SampledSpectrum::<Nanometer, Ratio>::from_sorted(
+    ///     &[0.0, 2.0], &[10.0, 20.0],
+    ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
+    /// ).unwrap();
+    /// let c = a.zip_with(&b, |ya, yb| ya + yb).unwrap();
+    /// assert_eq!(c.ys_raw(), &[11.0, 17.0, 23.0]);
+    /// ```
+    pub fn zip_with<Yo: Unit, F>(
+        &self,
+        other: &SampledSpectrum<X, Yo>,
+        f: F,
+    ) -> Result<Self, SpectrumError>
+    where
+        F: Fn(f64, f64) -> f64,
+    {
+        let mut ys = Vec::with_capacity(self.xs.len());
+        for (&x, &ya) in self.xs.iter().zip(self.ys.iter()) {
+            let yb = other.eval(x, other.oor)?;
+            ys.push(f(ya, yb));
+        }
+        let xs: Vec<f64> = self.xs.to_vec();
+        Self::from_raw(xs, ys, self.interp, self.oor, self.provenance.clone())
     }
 }
 

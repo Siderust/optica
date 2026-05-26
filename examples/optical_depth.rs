@@ -11,7 +11,9 @@
 use affn::{CartesianDirection, Position, ReferenceCenter, ReferenceFrame};
 use optica::medium::HomogeneousMedium;
 use optica::ray::{Ray, RaySegment};
-use optica::transport::{integrate_optical_depth, transmittance, IntegrationOpts};
+use optica::transport::{
+    integrate_optical_depth, transmittance, IntegrationMethod, IntegrationOpts,
+};
 use qtty::length::{Kilometers, Nanometers};
 use qtty::unit::Kilometer;
 
@@ -36,7 +38,7 @@ impl ReferenceFrame for Enu {
 
 fn main() {
     // Medium: σ_a = 0.05 km⁻¹, σ_s = 0.10 km⁻¹ → σ_t = 0.15 km⁻¹
-    let medium = HomogeneousMedium::<Kilometer>::new(0.05, 0.10);
+    let medium = HomogeneousMedium::<Kilometer>::try_new(0.05, 0.10).unwrap();
 
     // Vertical ray from ground to 20 km altitude
     let ray = Ray::new(
@@ -51,7 +53,7 @@ fn main() {
         &ray,
         segment,
         Nanometers::new(550.0),
-        IntegrationOpts { n_steps: 100 },
+        IntegrationOpts::new(100, IntegrationMethod::Midpoint),
     );
     let t = transmittance(tau);
 

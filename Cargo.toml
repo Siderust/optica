@@ -16,10 +16,12 @@ exclude = [".github/", "target/"]
 
 [features]
 default = ["std"]
-std = ["qtty/std"]
+std = ["alloc", "qtty/std"]
 alloc = ["qtty/alloc"]
 serde = ["dep:serde", "qtty/serde"]
-# astro: reserved for future astronomy-specific adapters (off by default)
+# astro: reserved for future astronomy-specific adapters (off by default).
+# The flag currently gates no public items; it exists so downstream crates can
+# pin a stable feature set when future astronomy adapters land.
 astro = []
 
 [dependencies]
@@ -30,6 +32,7 @@ serde = { version = "1.0", default-features = false, features = ["derive"], opti
 
 [dev-dependencies]
 approx = "0.5"
+serde_json = "1.0"
 
 [lints.rust]
 unsafe_code = "forbid"
@@ -45,9 +48,3 @@ print_stdout = "warn"
 
 [lints.rustdoc]
 broken_intra_doc_links = "deny"
-
-[patch.crates-io]
-qtty-core   = { path = "../qtty/qtty-core" }
-qtty-derive = { path = "../qtty/qtty-derive" }
-qtty        = { path = "../qtty/qtty" }
-affn        = { path = "../affn" }

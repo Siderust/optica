@@ -5,6 +5,8 @@
 
 use core::marker::PhantomData;
 
+use alloc::{boxed::Box, vec::Vec};
+
 use qtty::{Quantity, Unit};
 
 use crate::data::Provenance;
@@ -26,6 +28,7 @@ use crate::grid::{AxisDirection, GridError, OutOfRange};
 /// assert!(!region.contains(5.0, 6.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ConstantRegion {
     /// When set, the region applies only when `x <= x_upper_bound`.
     pub x_upper_bound: Option<f64>,
@@ -60,10 +63,10 @@ impl ConstantRegion {
 /// Values are stored in y-major (row-major) order: `values[iy * nx + ix]`, so
 /// each contiguous row corresponds to a fixed `y` value varying over `x`.
 ///
-/// Both ascending and descending axes are supported. The y-descending
-/// constructor ([`from_raw_row_major_y_descending`]) accepts Leinert-style
-/// tables whose first axis is the highest physical value without requiring
-/// callers to reorder the data.
+/// Both ascending and descending axes are supported. The
+/// [`from_raw_row_major_y_descending`] constructor accepts tables whose first
+/// `y` row corresponds to the highest physical value (a uniform y-descending
+/// layout) without requiring callers to reorder the data.
 ///
 /// # Examples
 ///
@@ -150,13 +153,14 @@ impl<X: Unit, Y: Unit, V: Unit> Grid2D<X, Y, V> {
 
     /// Builds a validated 2-D grid where the y-axis is strictly descending and uniform.
     ///
-    /// This constructor is intended for Leinert-style tables that store the highest
-    /// physical y-value first. It accepts a y-descending axis and keeps the value rows in
-    /// their original order by applying a reflection transform at query time:
+    /// Intended for tables that store the highest physical y-value first and
+    /// keep value rows in the same (descending) order. The constructor accepts
+    /// the descending y-axis and applies a reflection transform at query time:
     /// `y_internal = (ys_desc[0] + ys_desc[ny-1]) − y_query`.
     ///
-    /// The y-axis must be strictly descending **and** uniformly spaced (equal absolute
-    /// step between all consecutive pairs, compared bit-for-bit in IEEE 754).
+    /// The y-axis must be strictly descending **and** uniformly spaced (equal
+    /// absolute step between all consecutive pairs, compared bit-for-bit in
+    /// IEEE 754).
     ///
     /// # Errors
     ///
@@ -190,7 +194,7 @@ impl<X: Unit, Y: Unit, V: Unit> Grid2D<X, Y, V> {
                 });
             }
         }
-        // Validate uniform step (bit-exact IEEE 754 comparison matching siderust parity)
+        // Validate uniform step using bit-exact IEEE 754 comparison.
         let step = ys_desc[0] - ys_desc[1];
         for i in 1..ny {
             let got = ys_desc[i - 1] - ys_desc[i];
@@ -312,6 +316,45 @@ impl<X: Unit, Y: Unit, V: Unit> Grid2D<X, Y, V> {
     #[must_use]
     pub fn provenance(&self) -> Option<&Provenance> {
         self.provenance.as_ref()
+    }
+
+    /// Returns the inclusive `x` bounds of the table as `(min, max)`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use optica::grid::{Grid2D, OutOfRange};
+    /// use qtty::unit::{Nanometer, Radian, Ratio};
+    ///
+    /// let g = Grid2D::<Nanometer, Radian, Ratio>::from_raw_row_major(
+    ///     &[400.0, 500.0], &[0.0, 1.0], &[1.0, 2.0, 3.0, 4.0],
+    ///     OutOfRange::ClampToEndpoints,
+    /// ).unwrap();
+    /// let (lo, hi) = g.x_bounds();
+    /// assert_eq!(lo.value(), 400.0);
+    /// assert_eq!(hi.value(), 500.0);
+    /// ```
+    #[must_use]
+    pub fn x_bounds(&self) -> (Quantity<X>, Quantity<X>) {
+        let lo = self.xs.iter().copied().fold(f64::INFINITY, f64::min);
+        let hi = self.xs.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        (Quantity::<X>::new(lo), Quantity::<X>::new(hi))
+    }
+
+    /// Returns the inclusive `y` bounds of the table as `(min, max)`, in the
+    /// user-facing coordinate (the original axis as supplied at construction).
+    #[must_use]
+    pub fn y_bounds(&self) -> (Quantity<Y>, Quantity<Y>) {
+        let lo = self.ys.iter().copied().fold(f64::INFINITY, f64::min);
+        let hi = self.ys.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        (Quantity::<Y>::new(lo), Quantity::<Y>::new(hi))
+    }
+
+    /// Returns the full rectangular domain as `((x_min, x_max), (y_min, y_max))`.
+    #[must_use]
+    #[allow(clippy::type_complexity)]
+    pub fn domain(&self) -> ((Quantity<X>, Quantity<X>), (Quantity<Y>, Quantity<Y>)) {
+        (self.x_bounds(), self.y_bounds())
     }
 
     fn eval(

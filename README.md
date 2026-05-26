@@ -61,9 +61,9 @@ optica = { version = "0.1", features = ["serde"] }
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `std`   | ✓       | Enables `std`-dependent functionality (currently a passthrough to `qtty/std`). |
-| `alloc` |         | Enables `alloc`-only mode for embedded/`no_std` targets. |
-| `serde` |         | Derives `Serialize`/`Deserialize` on public types. |
+| `std`   | ✓       | Enables `std`-dependent helpers (ASCII loader, file I/O) and implies `alloc`. |
+| `alloc` |         | Enables heap-backed types (`Vec`/`Box`/`String`) for `no_std` targets. With this off, only `medium`, `ray`, `scatter`, and `transport` are compiled. |
+| `serde` |         | Derives `Serialize`/`Deserialize` on the public data, error, and policy types. `TableSource` derives only `Serialize` because it borrows static slices. |
 | `astro` |         | Reserved for future astronomy-specific adapters; currently a no-op. |
 
 ## Examples

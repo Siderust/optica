@@ -61,6 +61,8 @@
 //!   (1992). *Numerical Recipes in C*, 2nd ed., §3.1, §4.1.
 //!   Cambridge University Press.
 
+use alloc::{vec, vec::Vec};
+
 use crate::grid::OutOfRange;
 use crate::spectrum::{Interpolation, SpectrumError};
 

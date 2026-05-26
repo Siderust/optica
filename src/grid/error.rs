@@ -14,6 +14,7 @@
 /// assert!(error.to_string().contains("too few"));
 /// ```
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum GridError {
     /// The value buffer length does not match the product of the axis lengths.
     #[error("expected {expected} values, got {got}")]

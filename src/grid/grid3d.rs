@@ -5,6 +5,8 @@
 
 use core::marker::PhantomData;
 
+use alloc::boxed::Box;
+
 use qtty::{Quantity, Unit};
 
 use crate::data::Provenance;
@@ -197,6 +199,40 @@ impl<X: Unit, Y: Unit, Z: Unit, V: Unit> Grid3D<X, Y, Z, V> {
     #[must_use]
     pub fn provenance(&self) -> Option<&Provenance> {
         self.provenance.as_ref()
+    }
+
+    /// Returns the inclusive `x` bounds as `(min, max)`.
+    #[must_use]
+    pub fn x_bounds(&self) -> (Quantity<X>, Quantity<X>) {
+        let (lo, hi) = self.x_axis.bounds();
+        (Quantity::<X>::new(lo), Quantity::<X>::new(hi))
+    }
+
+    /// Returns the inclusive `y` bounds as `(min, max)`.
+    #[must_use]
+    pub fn y_bounds(&self) -> (Quantity<Y>, Quantity<Y>) {
+        let (lo, hi) = self.y_axis.bounds();
+        (Quantity::<Y>::new(lo), Quantity::<Y>::new(hi))
+    }
+
+    /// Returns the inclusive `z` bounds as `(min, max)`.
+    #[must_use]
+    pub fn z_bounds(&self) -> (Quantity<Z>, Quantity<Z>) {
+        let (lo, hi) = self.z_axis.bounds();
+        (Quantity::<Z>::new(lo), Quantity::<Z>::new(hi))
+    }
+
+    /// Returns the full cuboidal domain as `((x_lo, x_hi), (y_lo, y_hi), (z_lo, z_hi))`.
+    #[must_use]
+    #[allow(clippy::type_complexity)]
+    pub fn domain(
+        &self,
+    ) -> (
+        (Quantity<X>, Quantity<X>),
+        (Quantity<Y>, Quantity<Y>),
+        (Quantity<Z>, Quantity<Z>),
+    ) {
+        (self.x_bounds(), self.y_bounds(), self.z_bounds())
     }
 
     fn interpolate(&self, ix: usize, tx: f64, iy: usize, ty: f64, iz: usize, tz: f64) -> f64 {

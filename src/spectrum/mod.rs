@@ -42,6 +42,7 @@ pub use sampled::SampledSpectrum;
 /// assert!(matches!(mode, Interpolation::Linear));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Interpolation {
     /// Piecewise-linear interpolation.
     ///

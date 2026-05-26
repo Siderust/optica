@@ -3,6 +3,8 @@
 
 //! Lookup-axis definitions for interpolation tables.
 
+use alloc::boxed::Box;
+
 use crate::grid::algo::{locate, locate_uniform};
 use crate::grid::error::GridError;
 
@@ -17,6 +19,7 @@ use crate::grid::error::GridError;
 /// assert_eq!(axis.locate(425.0), (0, 0.5));
 /// ```
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Axis {
     /// Uniformly-spaced axis: `O(1)` lookup.
     Uniform {
@@ -64,6 +67,37 @@ impl Axis {
         match self {
             Self::Uniform { start, step, count } => locate_uniform(*start, *step, *count, x),
             Self::NonUniform(xs) => locate(xs, x),
+        }
+    }
+
+    /// Returns the axis endpoints as `(min, max)` (always with `min ≤ max`).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use optica::grid::Axis;
+    ///
+    /// let axis = Axis::uniform(400.0, 50.0, 3).unwrap();
+    /// let (lo, hi) = axis.bounds();
+    /// assert_eq!(lo, 400.0);
+    /// assert_eq!(hi, 500.0);
+    /// ```
+    #[must_use]
+    pub fn bounds(&self) -> (f64, f64) {
+        match self {
+            Self::Uniform { start, step, count } => {
+                let end = start + step * (*count as f64 - 1.0);
+                if *step >= 0.0 {
+                    (*start, end)
+                } else {
+                    (end, *start)
+                }
+            }
+            Self::NonUniform(xs) => {
+                let lo = xs.iter().copied().fold(f64::INFINITY, f64::min);
+                let hi = xs.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                (lo, hi)
+            }
         }
     }
 
@@ -159,17 +193,6 @@ impl Axis {
                 }
                 Ok(())
             }
-        }
-    }
-
-    #[must_use]
-    pub(crate) fn bounds(&self) -> (f64, f64) {
-        match self {
-            Self::Uniform { start, step, count } => {
-                let max = *start + *step * (*count as f64 - 1.0);
-                (*start, max)
-            }
-            Self::NonUniform(xs) => (xs[0], xs[xs.len() - 1]),
         }
     }
 

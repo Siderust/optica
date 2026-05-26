@@ -5,6 +5,8 @@
 
 use core::marker::PhantomData;
 
+use alloc::boxed::Box;
+
 use qtty::{Quantity, Unit};
 
 use crate::data::Provenance;

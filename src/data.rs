@@ -6,6 +6,8 @@
 //! The types in this module are standalone and avoid any dependency on astronomy-
 //! specific crates or data pipelines.
 
+use alloc::string::String;
+
 /// Describes where tabulated or derived optical data came from.
 ///
 /// # Examples
@@ -20,6 +22,7 @@
 /// assert!(matches!(source, DataSource::Computed { .. }));
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum DataSource {
     /// A literature citation identified by a bibliography key and optional DOI.
     LiteratureCitation {
@@ -60,6 +63,7 @@ pub enum DataSource {
 /// assert!(provenance.notes.as_deref().unwrap().contains("published"));
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Provenance {
     /// Origin of the underlying data, if known.
     pub source: Option<DataSource>,
@@ -210,6 +214,7 @@ impl Provenance {
 /// assert!(matches!(source, TableSource::EmbeddedSlices { len: 2, .. }));
 /// ```
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub enum TableSource {
     /// Opaque embedded bytes, suitable for a custom parser.
     EmbeddedBytes(&'static [u8]),

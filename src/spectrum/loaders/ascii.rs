@@ -36,6 +36,8 @@
 //!   for tabular data*. NASA Goddard Space Flight Center.
 //!   <https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/general/ogip_93_003/>.
 
+use alloc::{format, vec::Vec};
+
 use qtty::Unit;
 
 use crate::data::Provenance;

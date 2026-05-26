@@ -3,6 +3,8 @@
 
 //! Error types for sampled-spectrum operations.
 
+use alloc::string::String;
+
 /// Errors produced while constructing or querying a sampled spectrum.
 ///
 /// # Examples
@@ -14,6 +16,8 @@
 /// assert!(error.to_string().contains("too few"));
 /// ```
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
+#[non_exhaustive]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SpectrumError {
     /// The `xs` and `ys` slices have different lengths.
     #[error("length mismatch: xs has {xs} elements, ys has {ys}")]
@@ -45,4 +49,11 @@ pub enum SpectrumError {
     /// Failed to parse a spectrum from text data.
     #[error("parse error: {0}")]
     Parse(String),
+    /// A computed or supplied value violated a domain invariant
+    /// (e.g. zero or non-finite divisor in normalization).
+    #[error("invalid value: {what}")]
+    InvalidValue {
+        /// Human-readable explanation of the violated invariant.
+        what: String,
+    },
 }
