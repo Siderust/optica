@@ -199,26 +199,92 @@ pub trait Medium<C: ReferenceCenter, F: ReferenceFrame, U: LengthUnit> {
     ) -> OpticalCoefficients<U>;
 }
 
+/// A participating medium that may fail to produce coefficients.
+///
+/// Use this trait for tabulated or externally driven models where evaluating
+/// coefficients can fail (e.g. out-of-domain queries, missing data).
+/// Infallible media should implement [`Medium`] instead.
+///
+/// # Examples
+///
+/// ```rust
+/// use affn::{Position, ReferenceCenter, ReferenceFrame};
+/// use optica::medium::{OpticalCoefficients, OpticalCoefficientError, TryMedium};
+/// use qtty::length::Nanometers;
+/// use qtty::unit::Kilometer;
+///
+/// #[derive(Debug, Copy, Clone)]
+/// struct Center;
+/// impl ReferenceCenter for Center {
+///     type Params = ();
+///     fn center_name() -> &'static str { "Center" }
+/// }
+///
+/// #[derive(Debug, Copy, Clone)]
+/// struct Frame;
+/// impl ReferenceFrame for Frame {
+///     fn frame_name() -> &'static str { "Frame" }
+/// }
+///
+/// struct BoundedMedium { sigma_a: f64, sigma_s: f64 }
+///
+/// impl TryMedium<Center, Frame, Kilometer> for BoundedMedium {
+///     type Error = OpticalCoefficientError;
+///     fn try_coefficients(
+///         &self,
+///         _p: Position<Center, Frame, Kilometer>,
+///         _wavelength: Nanometers,
+///     ) -> Result<OpticalCoefficients<Kilometer>, Self::Error> {
+///         OpticalCoefficients::try_new(self.sigma_a, self.sigma_s)
+///     }
+/// }
+///
+/// let m = BoundedMedium { sigma_a: 0.05, sigma_s: 0.1 };
+/// let result = m.try_coefficients(
+///     Position::<Center, Frame, Kilometer>::new(0.0, 0.0, 0.0),
+///     Nanometers::new(550.0),
+/// );
+/// assert!(result.is_ok());
+/// ```
+pub trait TryMedium<C: ReferenceCenter, F: ReferenceFrame, U: LengthUnit> {
+    /// The error type returned when coefficient evaluation fails.
+    type Error;
+
+    /// Attempts to return optical coefficients at a position and wavelength.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Self::Error` when the medium cannot provide coefficients at the
+    /// requested point (e.g. out-of-domain query, missing data).
+    fn try_coefficients(
+        &self,
+        p: Position<C, F, U>,
+        wavelength: qtty::length::Nanometers,
+    ) -> Result<OpticalCoefficients<U>, Self::Error>;
+}
+
 /// Spatially uniform medium with wavelength-independent coefficients.
 ///
 /// # Examples
 ///
 /// ```rust
-/// use optica::medium::HomogeneousMedium;
+/// use optica::medium::{HomogeneousMedium, InverseLength};
 /// use qtty::unit::Kilometer;
 ///
 /// let medium = HomogeneousMedium::<Kilometer>::try_new(0.1, 0.2).unwrap();
-/// assert_eq!(medium, HomogeneousMedium::<Kilometer>::try_new(0.1, 0.2).unwrap());
+/// assert!((medium.sigma_a().value() - 0.1).abs() < 1e-12);
+/// assert!((medium.sigma_s().value() - 0.2).abs() < 1e-12);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HomogeneousMedium<U: LengthUnit> {
-    sigma_a: f64,
-    sigma_s: f64,
-    _phantom: PhantomData<U>,
+    sigma_a: Quantity<InverseLength<U>>,
+    sigma_s: Quantity<InverseLength<U>>,
 }
 
 impl<U: LengthUnit> HomogeneousMedium<U> {
     /// Constructs a homogeneous medium from constant validated coefficients.
+    ///
+    /// Both values are in units of `1 / U`.
     ///
     /// # Errors
     ///
@@ -227,10 +293,21 @@ impl<U: LengthUnit> HomogeneousMedium<U> {
         check_coeff("sigma_a", sigma_a)?;
         check_coeff("sigma_s", sigma_s)?;
         Ok(Self {
-            sigma_a,
-            sigma_s,
-            _phantom: PhantomData,
+            sigma_a: Quantity::new(sigma_a),
+            sigma_s: Quantity::new(sigma_s),
         })
+    }
+
+    /// Returns the absorption coefficient `σ_a` in `1 / U`.
+    #[must_use]
+    pub fn sigma_a(&self) -> Quantity<InverseLength<U>> {
+        self.sigma_a
+    }
+
+    /// Returns the scattering coefficient `σ_s` in `1 / U`.
+    #[must_use]
+    pub fn sigma_s(&self) -> Quantity<InverseLength<U>> {
+        self.sigma_s
     }
 
     /// Creates a transparent homogeneous medium.
@@ -259,7 +336,7 @@ impl<C: ReferenceCenter, F: ReferenceFrame, U: LengthUnit> Medium<C, F, U>
         _wavelength: qtty::length::Nanometers,
     ) -> OpticalCoefficients<U> {
         // Invariants enforced at construction time.
-        OpticalCoefficients::try_new(self.sigma_a, self.sigma_s)
+        OpticalCoefficients::try_new(self.sigma_a.value(), self.sigma_s.value())
             .expect("HomogeneousMedium fields are validated at construction")
     }
 }

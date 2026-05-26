@@ -22,6 +22,7 @@ use core::marker::PhantomData;
 
 use alloc::{boxed::Box, vec::Vec};
 
+use qtty::unit::Ratio;
 use qtty::{DimMul, Dimension, Prod, Quantity, Unit};
 
 use crate::data::Provenance;
@@ -323,12 +324,44 @@ impl<X: Unit, Y: Unit> SampledSpectrum<X, Y> {
         }
     }
 
-    /// Resamples `self` onto an explicit set of x-locations.
+    /// Resamples `self` onto an explicit set of typed x-locations.
     ///
     /// Each input point is interpolated using the current [`Interpolation`]
     /// kernel; the produced spectrum uses [`Interpolation::Linear`] with
     /// [`OutOfRange::ClampToEndpoints`] for downstream querying. Provenance is
     /// not propagated.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SpectrumError`] when the requested grid violates monotonicity
+    /// or has fewer than two points, or when the source out-of-range policy
+    /// rejects an evaluation.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use optica::grid::OutOfRange;
+    /// use optica::spectrum::{Interpolation, SampledSpectrum};
+    /// use qtty::{Quantity, unit::{Nanometer, Ratio}};
+    ///
+    /// let s = SampledSpectrum::<Nanometer, Ratio>::from_sorted(
+    ///     &[400.0, 600.0], &[0.0, 1.0],
+    ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
+    /// ).unwrap();
+    /// let grid = [Quantity::<Nanometer>::new(450.0), Quantity::<Nanometer>::new(550.0)];
+    /// let r = s.resample_onto(&grid).unwrap();
+    /// assert!((r.ys_raw()[0] - 0.25).abs() < 1e-12);
+    /// assert!((r.ys_raw()[1] - 0.75).abs() < 1e-12);
+    /// ```
+    pub fn resample_onto(&self, xs: &[Quantity<X>]) -> Result<Self, SpectrumError> {
+        let raw: Vec<f64> = xs.iter().map(|q| q.value()).collect();
+        self.resample_onto_raw(&raw)
+    }
+
+    /// Resamples `self` onto an explicit set of raw x-values (in axis units).
+    ///
+    /// This is an escape hatch for callers that already hold raw `f64` grids.
+    /// Prefer [`resample_onto`](Self::resample_onto) for unit-safe code.
     ///
     /// # Errors
     ///
@@ -347,11 +380,11 @@ impl<X: Unit, Y: Unit> SampledSpectrum<X, Y> {
     ///     &[400.0, 600.0], &[0.0, 1.0],
     ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
     /// ).unwrap();
-    /// let r = s.resample_onto(&[450.0, 550.0]).unwrap();
+    /// let r = s.resample_onto_raw(&[450.0, 550.0]).unwrap();
     /// assert!((r.ys_raw()[0] - 0.25).abs() < 1e-12);
     /// assert!((r.ys_raw()[1] - 0.75).abs() < 1e-12);
     /// ```
-    pub fn resample_onto(&self, xs: &[f64]) -> Result<Self, SpectrumError> {
+    pub fn resample_onto_raw(&self, xs: &[f64]) -> Result<Self, SpectrumError> {
         let mut ys = Vec::with_capacity(xs.len());
         for &x in xs {
             ys.push(self.eval(x, self.oor)?);
@@ -367,6 +400,11 @@ impl<X: Unit, Y: Unit> SampledSpectrum<X, Y> {
 
     /// Returns a new spectrum scaled so that its trapezoidal integral over the
     /// sampled domain equals 1 (in raw axis units).
+    ///
+    /// The returned spectrum has value unit [`Ratio`](qtty::unit::Ratio)
+    /// regardless of `Y`, because dividing every sample by the area strips the
+    /// dimensional meaning of the original values.  To preserve `Y` (at the
+    /// cost of dimensional unsoundness), see [`normalize_area_raw`](Self::normalize_area_raw).
     ///
     /// # Errors
     ///
@@ -384,11 +422,57 @@ impl<X: Unit, Y: Unit> SampledSpectrum<X, Y> {
     ///     &[0.0, 1.0, 2.0], &[1.0, 1.0, 1.0],
     ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
     /// ).unwrap();
-    /// let n = s.normalize_area().unwrap();
+    /// let n: SampledSpectrum<Nanometer, Ratio> = s.normalize_area().unwrap();
     /// // ∫ 1 dx over [0, 2] = 2, so each sample becomes 0.5.
     /// assert!((n.ys_raw()[0] - 0.5).abs() < 1e-12);
     /// ```
-    pub fn normalize_area(&self) -> Result<Self, SpectrumError> {
+    pub fn normalize_area(&self) -> Result<SampledSpectrum<X, Ratio>, SpectrumError> {
+        let area = algo::trapz(&self.xs, &self.ys);
+        if !area.is_finite() || area == 0.0 {
+            return Err(SpectrumError::InvalidValue {
+                what: alloc::string::String::from("integrated area must be finite and non-zero"),
+            });
+        }
+        let inv = area.recip();
+        let ys: Vec<f64> = self.ys.iter().map(|&y| y * inv).collect();
+        let xs: Vec<f64> = self.xs.to_vec();
+        SampledSpectrum::<X, Ratio>::from_raw(
+            xs,
+            ys,
+            self.interp,
+            self.oor,
+            self.provenance.clone(),
+        )
+    }
+
+    /// Returns a new spectrum scaled so that its trapezoidal integral equals 1,
+    /// preserving the original value unit `Y`.
+    ///
+    /// This is an escape hatch for callers that need to keep the nominal `Y`
+    /// type despite the unit-semantic change that normalisation produces.
+    /// Prefer [`normalize_area`](Self::normalize_area) for dimensionally sound
+    /// code.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SpectrumError::InvalidValue`] when the integral is zero or
+    /// non-finite.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use optica::grid::OutOfRange;
+    /// use optica::spectrum::{Interpolation, SampledSpectrum};
+    /// use qtty::unit::{Nanometer, Ratio};
+    ///
+    /// let s = SampledSpectrum::<Nanometer, Ratio>::from_sorted(
+    ///     &[0.0, 1.0, 2.0], &[1.0, 1.0, 1.0],
+    ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
+    /// ).unwrap();
+    /// let n = s.normalize_area_raw().unwrap();
+    /// assert!((n.ys_raw()[0] - 0.5).abs() < 1e-12);
+    /// ```
+    pub fn normalize_area_raw(&self) -> Result<Self, SpectrumError> {
         let area = algo::trapz(&self.xs, &self.ys);
         if !area.is_finite() || area == 0.0 {
             return Err(SpectrumError::InvalidValue {
@@ -402,6 +486,12 @@ impl<X: Unit, Y: Unit> SampledSpectrum<X, Y> {
     }
 
     /// Returns a new spectrum scaled so that its maximum sample equals 1.
+    ///
+    /// The returned spectrum has value unit [`Ratio`](qtty::unit::Ratio)
+    /// because peak normalisation divides every sample by the peak value,
+    /// which carries the same unit `Y`, yielding a dimensionless relative shape.
+    /// To preserve `Y` (at the cost of dimensional unsoundness), see
+    /// [`normalize_peak_raw`](Self::normalize_peak_raw).
     ///
     /// # Errors
     ///
@@ -419,10 +509,55 @@ impl<X: Unit, Y: Unit> SampledSpectrum<X, Y> {
     ///     &[0.0, 1.0, 2.0], &[1.0, 4.0, 2.0],
     ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
     /// ).unwrap();
-    /// let n = s.normalize_peak().unwrap();
+    /// let n: SampledSpectrum<Nanometer, Ratio> = s.normalize_peak().unwrap();
     /// assert!((n.ys_raw()[1] - 1.0).abs() < 1e-12);
     /// ```
-    pub fn normalize_peak(&self) -> Result<Self, SpectrumError> {
+    pub fn normalize_peak(&self) -> Result<SampledSpectrum<X, Ratio>, SpectrumError> {
+        let peak = self.ys.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        if !peak.is_finite() || peak == 0.0 {
+            return Err(SpectrumError::InvalidValue {
+                what: alloc::string::String::from("peak value must be finite and non-zero"),
+            });
+        }
+        let inv = peak.recip();
+        let ys: Vec<f64> = self.ys.iter().map(|&y| y * inv).collect();
+        let xs: Vec<f64> = self.xs.to_vec();
+        SampledSpectrum::<X, Ratio>::from_raw(
+            xs,
+            ys,
+            self.interp,
+            self.oor,
+            self.provenance.clone(),
+        )
+    }
+
+    /// Returns a new spectrum scaled so that its maximum sample equals 1,
+    /// preserving the original value unit `Y`.
+    ///
+    /// This is an escape hatch for callers that need to keep the nominal `Y`
+    /// type despite the unit-semantic change. Prefer
+    /// [`normalize_peak`](Self::normalize_peak) for dimensionally sound code.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SpectrumError::InvalidValue`] when the maximum sample is zero
+    /// or non-finite.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use optica::grid::OutOfRange;
+    /// use optica::spectrum::{Interpolation, SampledSpectrum};
+    /// use qtty::unit::{Nanometer, Ratio};
+    ///
+    /// let s = SampledSpectrum::<Nanometer, Ratio>::from_sorted(
+    ///     &[0.0, 1.0, 2.0], &[1.0, 4.0, 2.0],
+    ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
+    /// ).unwrap();
+    /// let n = s.normalize_peak_raw().unwrap();
+    /// assert!((n.ys_raw()[1] - 1.0).abs() < 1e-12);
+    /// ```
+    pub fn normalize_peak_raw(&self) -> Result<Self, SpectrumError> {
         let peak = self.ys.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         if !peak.is_finite() || peak == 0.0 {
             return Err(SpectrumError::InvalidValue {
@@ -435,7 +570,51 @@ impl<X: Unit, Y: Unit> SampledSpectrum<X, Y> {
         Self::from_raw(xs, ys, self.interp, self.oor, self.provenance.clone())
     }
 
-    /// Maps every value through `f`, preserving x-axis and metadata.
+    /// Maps every value through a typed closure, producing a spectrum with a
+    /// new value unit `Y2`.
+    ///
+    /// This is the dimensionally safe variant: the closure receives a
+    /// [`Quantity<Y>`] and returns a [`Quantity<Y2>`], so the compiler enforces
+    /// that the output unit is intentional.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SpectrumError`] when validation of the transformed values fails.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use optica::grid::OutOfRange;
+    /// use optica::spectrum::{Interpolation, SampledSpectrum};
+    /// use qtty::{Quantity, unit::{Nanometer, Ratio}};
+    ///
+    /// let s = SampledSpectrum::<Nanometer, Ratio>::from_sorted(
+    ///     &[400.0, 500.0], &[0.1, 0.2],
+    ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
+    /// ).unwrap();
+    /// let s2: SampledSpectrum<Nanometer, Ratio> =
+    ///     s.map_values_to(|y: Quantity<Ratio>| Quantity::<Ratio>::new(y.value() * 10.0))
+    ///      .unwrap();
+    /// assert_eq!(s2.ys_raw(), &[1.0, 2.0]);
+    /// ```
+    pub fn map_values_to<Y2: Unit, F>(&self, f: F) -> Result<SampledSpectrum<X, Y2>, SpectrumError>
+    where
+        F: Fn(Quantity<Y>) -> Quantity<Y2>,
+    {
+        let ys: Vec<f64> = self
+            .ys
+            .iter()
+            .map(|&y| f(Quantity::<Y>::new(y)).value())
+            .collect();
+        let xs: Vec<f64> = self.xs.to_vec();
+        SampledSpectrum::<X, Y2>::from_raw(xs, ys, self.interp, self.oor, self.provenance.clone())
+    }
+
+    /// Maps every value through a raw `f64` closure, preserving x-axis and metadata.
+    ///
+    /// This is an escape hatch for callers that need low-level control or that
+    /// are already working in raw (unit-normalised) values.  Prefer
+    /// [`map_values_to`](Self::map_values_to) for dimensionally safe code.
     ///
     /// `f` must be deterministic and finite-preserving; non-finite outputs will
     /// be rejected by validation.
@@ -455,10 +634,10 @@ impl<X: Unit, Y: Unit> SampledSpectrum<X, Y> {
     ///     &[400.0, 500.0], &[0.1, 0.2],
     ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
     /// ).unwrap();
-    /// let s2 = s.map_values(|y| y * 10.0).unwrap();
+    /// let s2 = s.map_values_raw(|y| y * 10.0).unwrap();
     /// assert_eq!(s2.ys_raw(), &[1.0, 2.0]);
     /// ```
-    pub fn map_values<F>(&self, f: F) -> Result<Self, SpectrumError>
+    pub fn map_values_raw<F>(&self, f: F) -> Result<Self, SpectrumError>
     where
         F: Fn(f64) -> f64,
     {
@@ -467,10 +646,61 @@ impl<X: Unit, Y: Unit> SampledSpectrum<X, Y> {
         Self::from_raw(xs, ys, self.interp, self.oor, self.provenance.clone())
     }
 
-    /// Combines two spectra sample-by-sample over the union x-grid produced by
-    /// resampling `other` onto `self`'s x-axis.
+    /// Combines two spectra sample-by-sample using a typed closure, producing a
+    /// spectrum with a new value unit `Yout`.
     ///
+    /// `other` is resampled onto `self`'s x-axis before the closure is applied.
     /// The output uses `self`'s interpolation and out-of-range policy.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SpectrumError`] when `other` cannot be evaluated at a point in
+    /// `self`'s grid under its own out-of-range policy.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use optica::grid::OutOfRange;
+    /// use optica::spectrum::{Interpolation, SampledSpectrum};
+    /// use qtty::{Quantity, unit::{Nanometer, Ratio}};
+    ///
+    /// let a = SampledSpectrum::<Nanometer, Ratio>::from_sorted(
+    ///     &[0.0, 1.0, 2.0], &[1.0, 2.0, 3.0],
+    ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
+    /// ).unwrap();
+    /// let b = SampledSpectrum::<Nanometer, Ratio>::from_sorted(
+    ///     &[0.0, 2.0], &[10.0, 20.0],
+    ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
+    /// ).unwrap();
+    /// let c: SampledSpectrum<Nanometer, Ratio> = a.zip_with_to(&b, |ya, yb| {
+    ///     Quantity::<Ratio>::new(ya.value() + yb.value())
+    /// }).unwrap();
+    /// assert_eq!(c.ys_raw(), &[11.0, 17.0, 23.0]);
+    /// ```
+    pub fn zip_with_to<Yo: Unit, Yout: Unit, F>(
+        &self,
+        other: &SampledSpectrum<X, Yo>,
+        f: F,
+    ) -> Result<SampledSpectrum<X, Yout>, SpectrumError>
+    where
+        F: Fn(Quantity<Y>, Quantity<Yo>) -> Quantity<Yout>,
+    {
+        let mut ys = Vec::with_capacity(self.xs.len());
+        for (&x, &ya) in self.xs.iter().zip(self.ys.iter()) {
+            let yb = other.eval(x, other.oor)?;
+            ys.push(f(Quantity::<Y>::new(ya), Quantity::<Yo>::new(yb)).value());
+        }
+        let xs: Vec<f64> = self.xs.to_vec();
+        SampledSpectrum::<X, Yout>::from_raw(xs, ys, self.interp, self.oor, self.provenance.clone())
+    }
+
+    /// Combines two spectra sample-by-sample using a raw `f64` closure.
+    ///
+    /// This is an escape hatch for callers already working in raw values.
+    /// Prefer [`zip_with_to`](Self::zip_with_to) for dimensionally safe code.
+    ///
+    /// `other` is resampled onto `self`'s x-axis; the output uses `self`'s
+    /// interpolation and out-of-range policy.
     ///
     /// # Errors
     ///
@@ -492,10 +722,10 @@ impl<X: Unit, Y: Unit> SampledSpectrum<X, Y> {
     ///     &[0.0, 2.0], &[10.0, 20.0],
     ///     Interpolation::Linear, OutOfRange::ClampToEndpoints,
     /// ).unwrap();
-    /// let c = a.zip_with(&b, |ya, yb| ya + yb).unwrap();
+    /// let c = a.zip_with_raw(&b, |ya, yb| ya + yb).unwrap();
     /// assert_eq!(c.ys_raw(), &[11.0, 17.0, 23.0]);
     /// ```
-    pub fn zip_with<Yo: Unit, F>(
+    pub fn zip_with_raw<Yo: Unit, F>(
         &self,
         other: &SampledSpectrum<X, Yo>,
         f: F,

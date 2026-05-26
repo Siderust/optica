@@ -25,7 +25,7 @@ constants, ephemerides, or observatory presets.
 - Sampled spectra: 1-D tables with linear, nearest, step, and cubic-spline interpolation
 - Two-column ASCII spectrum loader (whitespace or CSV, unit-scale factors, provenance)
 - 1-D, 2-D, and 3-D typed interpolation grids (ascending and descending axes)
-- Optical-depth integration over a ray segment (midpoint rule)
+- Optical-depth integration over a ray segment: midpoint, trapezoidal, Simpson, and Gauss-Legendre rules
 - Beer–Lambert transmittance and van Rhijn path-length factor
 - Provenance metadata for tabulated inputs and generated products
 
@@ -61,10 +61,25 @@ optica = { version = "0.1", features = ["serde"] }
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `std`   | ✓       | Enables `std`-dependent helpers (ASCII loader, file I/O) and implies `alloc`. |
+| `std`   | ✓       | Enables `std`-dependent helpers (ASCII/string parsing) and implies `alloc`. |
 | `alloc` |         | Enables heap-backed types (`Vec`/`Box`/`String`) for `no_std` targets. With this off, only `medium`, `ray`, `scatter`, and `transport` are compiled. |
 | `serde` |         | Derives `Serialize`/`Deserialize` on the public data, error, and policy types. `TableSource` derives only `Serialize` because it borrows static slices. |
 | `astro` |         | Reserved for future astronomy-specific adapters; currently a no-op. |
+
+## Serde support
+
+When the `serde` feature is enabled, the following types derive `Serialize` and `Deserialize`:
+`AxisDirection`, `OutOfRange`, `Provenance`, `TableSource` (`Serialize` only),
+`Interpolation`, `SpectrumError`, `OpticalCoefficientError`, `PhaseError`,
+`ScatterError`, `TransportError`, `IntegrationMethod`, `IntegrationOpts`,
+`MieParams`.
+
+The following types **do not** derive serde:
+`SampledSpectrum`, `Grid1D`, `Grid2D`, `Grid3D`, `HomogeneousMedium`,
+`HenyeyGreensteinPhaseFunction`, `DoubleHenyeyGreensteinPhaseFunction`,
+`RayleighPhaseFunction`, `PhaseModel`, `PhaseTable`.
+These containers hold variable-length data or opaque function pointers; their
+serialization format is left to the caller.
 
 ## Examples
 
@@ -113,7 +128,7 @@ assert!((v.value() - 0.475).abs() < 1e-12);
 use affn::{CartesianDirection, Position, ReferenceCenter, ReferenceFrame};
 use optica::medium::HomogeneousMedium;
 use optica::ray::{Ray, RaySegment};
-use optica::transport::{integrate_optical_depth, IntegrationOpts};
+use optica::transport::{integrate_optical_depth, IntegrationMethod, IntegrationOpts};
 use qtty::length::{Kilometers, Nanometers};
 use qtty::unit::Kilometer;
 
@@ -131,7 +146,7 @@ impl ReferenceFrame for LocalFrame {
 }
 
 // σ_a = 0.1 km⁻¹, σ_s = 0.2 km⁻¹ → σ_t = 0.3 km⁻¹
-let medium = HomogeneousMedium::<Kilometer>::new(0.1, 0.2);
+let medium = HomogeneousMedium::<Kilometer>::try_new(0.1, 0.2).unwrap();
 let ray = Ray::new(
     Position::<Origin, LocalFrame, Kilometer>::new(0.0, 0.0, 0.0),
     CartesianDirection::<LocalFrame>::new(0.0, 0.0, 1.0),
@@ -141,7 +156,7 @@ let tau = integrate_optical_depth(
     &ray,
     RaySegment::new(Kilometers::new(0.0), Kilometers::new(10.0)),
     Nanometers::new(550.0),
-    IntegrationOpts { n_steps: 32 },
+    IntegrationOpts::new(32, IntegrationMethod::Midpoint),
 );
 // τ = σ_t × distance = 0.3 × 10 = 3.0
 assert!((tau.value() - 3.0).abs() < 1e-12);

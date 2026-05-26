@@ -25,6 +25,7 @@ pub use crate::data::{DataSource, Provenance, TableSource};
 pub use crate::grid::{Axis, Grid1D, Grid2D, Grid3D, GridError, OutOfRange};
 pub use crate::medium::{
     HomogeneousMedium, InverseLength, Medium, OpticalCoefficientError, OpticalCoefficients,
+    TryMedium,
 };
 pub use crate::phase::{
     rayleigh_phase, DoubleHenyeyGreensteinPhaseFunction, HenyeyGreensteinPhaseFunction, PhaseError,

@@ -44,7 +44,7 @@ impl Unit for ScatteringFactor {
 /// use optica::phase::PhaseError;
 ///
 /// let err = PhaseError::AsymmetryOutOfRange { field: "g", value: 1.5 };
-/// assert!(err.to_string().contains("must lie in [-1, 1]"));
+/// assert!(err.to_string().contains("must lie in (-1, 1)"));
 /// ```
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 #[non_exhaustive]
@@ -58,8 +58,11 @@ pub enum PhaseError {
         /// Supplied value.
         value: f64,
     },
-    /// Asymmetry parameter outside `[-1, 1]`.
-    #[error("{field} must lie in [-1, 1] (got {value})")]
+    /// Asymmetry parameter outside `(-1, 1)`.
+    ///
+    /// The values `g = ±1` are not accepted because the Henyey-Greenstein
+    /// formula degenerates to a Dirac delta at those limits.
+    #[error("{field} must lie in (-1, 1) (got {value})")]
     AsymmetryOutOfRange {
         /// Offending field name.
         field: &'static str,
@@ -171,6 +174,7 @@ impl PhaseFunction for RayleighPhaseFunction {
 /// let value = hg.phase(Nanometers::new(550.0), Radians::new(0.5));
 /// assert!(value.value() > 0.0);
 /// assert!(HenyeyGreensteinPhaseFunction::try_new(1.5).is_err());
+/// assert!(HenyeyGreensteinPhaseFunction::try_new(1.0).is_err());  // g=1 degenerates
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct HenyeyGreensteinPhaseFunction {
@@ -178,11 +182,14 @@ pub struct HenyeyGreensteinPhaseFunction {
 }
 
 impl HenyeyGreensteinPhaseFunction {
-    /// Constructs a Henyey-Greenstein kernel after validating `g ∈ [-1, 1]`.
+    /// Constructs a Henyey-Greenstein kernel after validating `g ∈ (-1, 1)`.
+    ///
+    /// The values `g = ±1` are rejected because at those limits the HG formula
+    /// `(1 − g²) / (1 + g² − 2g cos θ)^(3/2)` collapses to a Dirac delta.
     ///
     /// # Errors
     ///
-    /// Returns [`PhaseError`] when `g` is non-finite or outside `[-1, 1]`.
+    /// Returns [`PhaseError`] when `g` is non-finite or outside `(-1, 1)`.
     pub fn try_new(g: f64) -> Result<Self, PhaseError> {
         check_asymmetry("g", g)?;
         Ok(Self { g })
@@ -230,7 +237,7 @@ impl DoubleHenyeyGreensteinPhaseFunction {
     ///
     /// # Errors
     ///
-    /// Returns [`PhaseError`] when either asymmetry lies outside `[-1, 1]` or
+    /// Returns [`PhaseError`] when either asymmetry lies outside `(-1, 1)` or
     /// the weight lies outside `[0, 1]`. Non-finite inputs are also rejected.
     pub fn try_new(g1: f64, g2: f64, weight: f64) -> Result<Self, PhaseError> {
         check_asymmetry("g1", g1)?;
@@ -289,7 +296,7 @@ fn check_asymmetry(field: &'static str, value: f64) -> Result<(), PhaseError> {
     if !value.is_finite() {
         return Err(PhaseError::NonFinite { field, value });
     }
-    if !(-1.0..=1.0).contains(&value) {
+    if value <= -1.0 || value >= 1.0 {
         return Err(PhaseError::AsymmetryOutOfRange { field, value });
     }
     Ok(())
@@ -333,6 +340,14 @@ mod tests {
     fn hg_rejects_out_of_range_g() {
         assert!(matches!(
             HenyeyGreensteinPhaseFunction::try_new(1.5),
+            Err(PhaseError::AsymmetryOutOfRange { .. })
+        ));
+        assert!(matches!(
+            HenyeyGreensteinPhaseFunction::try_new(1.0),
+            Err(PhaseError::AsymmetryOutOfRange { .. })
+        ));
+        assert!(matches!(
+            HenyeyGreensteinPhaseFunction::try_new(-1.0),
             Err(PhaseError::AsymmetryOutOfRange { .. })
         ));
         assert!(matches!(

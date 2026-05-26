@@ -35,7 +35,15 @@ pre-1.0 minor releases may contain breaking changes.
   `IntegrationOpts` now carries a `method` field. New
   `transport::try_integrate_optical_depth` validates inputs.
 - `spectrum::SampledSpectrum`: `domain`, `contains`, `overlap_domain`,
-  `resample_onto`, `normalize_area`, `normalize_peak`, `map_values`, `zip_with`.
+  `resample_onto` (typed, takes `&[Quantity<X>]`), `resample_onto_raw` (raw
+  escape hatch), `normalize_area` (returns `SampledSpectrum<X, Ratio>`),
+  `normalize_area_raw` (raw escape hatch), `normalize_peak` (returns
+  `SampledSpectrum<X, Ratio>`), `normalize_peak_raw` (raw escape hatch),
+  `map_values_to` (typed closure), `map_values_raw` (raw escape hatch),
+  `zip_with_to` (typed closure), `zip_with_raw` (raw escape hatch).
+- `medium::TryMedium<C, F, U>` trait for fallible/tabulated media.
+- `HomogeneousMedium::sigma_a()` and `sigma_s()` typed getters returning
+  `Quantity<InverseLength<U>>`.
 - `grid::Axis::bounds`, `Grid2D::x_bounds`/`y_bounds`/`domain`,
   `Grid3D::x_bounds`/`y_bounds`/`z_bounds`/`domain`.
 - `spectrum::SpectrumError::InvalidValue` variant. Enum marked `#[non_exhaustive]`.
@@ -57,6 +65,15 @@ pre-1.0 minor releases may contain breaking changes.
 - `IntegrationOpts { n_steps }` literal construction must now supply `method`;
   use `IntegrationOpts::default()` or `IntegrationOpts::new(n_steps, method)`.
 - `SpectrumError` is now `#[non_exhaustive]`.
+- `HenyeyGreensteinPhaseFunction::try_new` and
+  `DoubleHenyeyGreensteinPhaseFunction::try_new` now reject `g = ±1` (open
+  interval `(-1, 1)` strictly). The HG formula degenerates to a Dirac delta at
+  those limits.
+- `SampledSpectrum::normalize_area` returns `SampledSpectrum<X, Ratio>` (not
+  `Self`); `normalize_peak` likewise.
+- `SampledSpectrum::map_values` renamed to `map_values_raw`; `zip_with` renamed
+  to `zip_with_raw`; `resample_onto(&[f64])` renamed to `resample_onto_raw`.
+- `HomogeneousMedium` internal fields now stored as `Quantity<InverseLength<U>>`.
 
 ## [0.1.0] — 2026-05-26
 
