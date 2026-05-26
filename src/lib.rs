@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
 
+#![doc(html_root_url = "https://docs.rs/optica/0.1.0")]
 //! # optica — participating-media and optics foundations
 //!
 //! `optica` provides fast, typed building blocks for optics and radiative-transfer
@@ -24,3 +25,5 @@ pub mod ray;
 pub mod scatter;
 pub mod spectrum;
 pub mod transport;
+
+pub use grid::{AxisDirection, ConstantRegion};

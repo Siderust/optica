@@ -2,13 +2,17 @@
 name = "optica"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.82"
 authors = ["VPRamon <vallespuigramon@gmail.com>"]
 description = "Fast participating-media and optics foundation: typed rays, optical coefficients, phase functions, spectra, and optical-depth integration."
 license = "AGPL-3.0-only"
 readme = "README.md"
 repository = "https://github.com/Siderust/optica"
-keywords = ["optics", "participating-media", "radiometry", "atmosphere", "rendering"]
-categories = ["science", "rendering"]
+homepage = "https://github.com/Siderust/optica"
+documentation = "https://docs.rs/optica"
+keywords = ["optics", "radiometry", "atmosphere", "rendering", "spectrum"]
+categories = ["science", "rendering", "no-std"]
+exclude = [".github/", "target/"]
 
 [features]
 default = ["std"]
