@@ -12,6 +12,8 @@ use qtty::angular::Radians;
 use qtty::dimensionless::{OpticalDepths, Transmittances};
 use qtty::length::{Kilometers, LengthUnit, Nanometers};
 use qtty::Quantity;
+#[cfg(not(feature = "std"))]
+use qtty::{Real, Transcendental};
 
 use crate::medium::Medium;
 use crate::ray::{Ray, RaySegment};

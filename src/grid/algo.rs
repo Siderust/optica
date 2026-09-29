@@ -9,6 +9,9 @@
 //! `bilinear_unit`, `trilinear`, `trilinear_unit`) are the canonical
 //! interpolation kernels reused by `siderust::tables`.
 
+#[cfg(not(feature = "std"))]
+use qtty::Real;
+
 use crate::grid::{AxisDirection, GridError, OutOfRange};
 
 // ─── Axis-based internal kernels (Grid1D / Axis) ─────────────────────────────
