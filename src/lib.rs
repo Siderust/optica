@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
 
-#![doc(html_root_url = "https://docs.rs/optica/0.1.0")]
+#![doc(html_root_url = "https://docs.rs/optica/0.3.0")]
 #![cfg_attr(not(feature = "std"), no_std)]
 //! # optica — participating-media and optics foundations
 //!
@@ -14,11 +14,16 @@
 //!
 //! ## Feature flags
 //!
-//! - `std` *(default)*: enables `std`-dependent helpers (ASCII loader, etc.).
+//! - `std` *(default)*: enables the standard library and implies `alloc`;
+//!   forwards `qtty/std` and `affn/std`.
 //! - `alloc`: enables heap-backed containers in `no_std` builds. All public types
-//!   that use `Vec`/`Box`/`String` are gated behind `alloc` or `std`.
+//!   that use `Vec`/`Box`/`String` are gated behind `alloc` or `std`; forwards
+//!   `qtty/alloc` and `affn/alloc`.
 //! - `serde`: derives `Serialize`/`Deserialize` for the public data, error,
-//!   and policy enums.
+//!   and policy enums (implies `alloc`).
+//!
+//! Pure `core`-only builds use `--no-default-features`. Combine with
+//! `--features alloc` and/or `--features serde` as needed.
 //!
 //! ## References
 //!

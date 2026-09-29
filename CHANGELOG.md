@@ -7,6 +7,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/) starting at 1.0;
 pre-1.0 minor releases may contain breaking changes.
 
+## [0.3.0] - 2026-09-29
+
+### Changed
+
+- **Breaking:** bump `affn` to `0.10` for first-class `no_std` support
+  (closes [#2](https://github.com/Siderust/optica/issues/2)).
+- Forward `affn`/`qtty` features explicitly: `std` implies `alloc` and enables
+  `qtty/std` + `affn/std`; `alloc` enables `qtty/alloc` + `affn/alloc`.
+- **Breaking:** `serde` now implies `alloc` (matching `affn` 0.10).
+- Use `qtty::{Real, Transcendental}` for float math under
+  `#[cfg(not(feature = "std"))]` so bare-metal builds compile without pulling
+  `std` through dependencies.
+- Refresh transitive dependency lockfile.
+
 ## [0.2.0] - 2026-06-21
 
 ### Added

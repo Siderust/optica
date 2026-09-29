@@ -15,6 +15,8 @@ use qtty::angular::Radians;
 use qtty::length::Nanometers;
 use qtty::unit::{Nanometer, Radian};
 use qtty::{Dimensionless, Quantity, Unit};
+#[cfg(not(feature = "std"))]
+use qtty::{Real, Transcendental};
 
 /// Dimensionless value marker for phase-function values.
 ///

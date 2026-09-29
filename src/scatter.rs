@@ -15,6 +15,8 @@ use qtty::dimensionless::OpticalDepths;
 use qtty::length::{Kilometers, Nanometers};
 use qtty::pressure::Hectopascals;
 use qtty::unit::Micrometer;
+#[cfg(not(feature = "std"))]
+use qtty::Real;
 
 /// Errors produced when validating scattering inputs.
 ///

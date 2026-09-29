@@ -1,6 +1,6 @@
 [package]
 name = "optica"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.82"
 authors = ["VPRamon <vallespuigramon@gmail.com>"]
@@ -16,9 +16,9 @@ exclude = [".github/", "target/"]
 
 [features]
 default = ["std"]
-std = ["alloc", "qtty/std"]
-alloc = ["qtty/alloc"]
-serde = ["dep:serde", "qtty/serde"]
+std = ["alloc", "qtty/std", "affn/std"]
+alloc = ["qtty/alloc", "affn/alloc"]
+serde = ["dep:serde", "alloc", "qtty/serde", "affn/serde"]
 # astro: reserved for future astronomy-specific adapters (off by default).
 # The flag currently gates no public items; it exists so downstream crates can
 # pin a stable feature set when future astronomy adapters land.
@@ -26,9 +26,9 @@ astro = []
 
 [dependencies]
 qtty = { version = "0.8", default-features = false, features = ["radiometry"] }
-affn = { version = "0.8", default-features = false }
+affn = { version = "0.10", default-features = false }
 thiserror = { version = "2", default-features = false }
-serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"], optional = true }
 
 [dev-dependencies]
 approx = "0.5"

@@ -40,31 +40,33 @@ constants, ephemerides, or observatory presets.
 
 ```toml
 [dependencies]
-optica = "0.1"
+optica = "0.3"
 ```
 
 Default features include `std`. Opt out for `no_std` + alloc:
 
 ```toml
 [dependencies]
-optica = { version = "0.1", default-features = false, features = ["alloc"] }
+optica = { version = "0.3", default-features = false, features = ["alloc"] }
 ```
 
 Enable Serde serialization:
 
 ```toml
 [dependencies]
-optica = { version = "0.1", features = ["serde"] }
+optica = { version = "0.3", features = ["serde"] }
 ```
 
 ## Feature flags
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `std`   | ✓       | Enables `std`-dependent helpers (ASCII/string parsing) and implies `alloc`. |
-| `alloc` |         | Enables heap-backed types (`Vec`/`Box`/`String`) for `no_std` targets. With this off, only `medium`, `ray`, `scatter`, and `transport` are compiled. |
-| `serde` |         | Derives `Serialize`/`Deserialize` on the public data, error, and policy types. `TableSource` derives only `Serialize` because it borrows static slices. |
+| `std`   | ✓       | Standard library (implies `alloc`); forwards `qtty/std` and `affn/std`. Enables `std`-dependent helpers such as ASCII/string parsing. |
+| `alloc` |         | Heap-backed types (`Vec`/`Box`/`String`) for `no_std` targets; forwards `qtty/alloc` and `affn/alloc`. With this off, only `medium`, `ray`, `scatter`, and `transport` are compiled. |
+| `serde` |         | Derives `Serialize`/`Deserialize` on the public data, error, and policy types (implies `alloc`). `TableSource` derives only `Serialize` because it borrows static slices. |
 | `astro` |         | Reserved for future astronomy-specific adapters; currently a no-op. |
+
+Pure `core`-only builds use `--no-default-features`.
 
 ## Serde support
 
