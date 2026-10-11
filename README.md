@@ -40,21 +40,21 @@ constants, ephemerides, or observatory presets.
 
 ```toml
 [dependencies]
-optica = "0.3"
+optica = "0.4"
 ```
 
 Default features include `std`. Opt out for `no_std` + alloc:
 
 ```toml
 [dependencies]
-optica = { version = "0.3", default-features = false, features = ["alloc"] }
+optica = { version = "0.4", default-features = false, features = ["alloc"] }
 ```
 
 Enable Serde serialization:
 
 ```toml
 [dependencies]
-optica = { version = "0.3", features = ["serde"] }
+optica = { version = "0.4", features = ["serde"] }
 ```
 
 ## Feature flags

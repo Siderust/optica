@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
 
-#![doc(html_root_url = "https://docs.rs/optica/0.3.0")]
+#![doc(html_root_url = "https://docs.rs/optica/0.4.0")]
 #![cfg_attr(not(feature = "std"), no_std)]
 //! # optica — participating-media and optics foundations
 //!

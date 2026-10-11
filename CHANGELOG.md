@@ -7,6 +7,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/) starting at 1.0;
 pre-1.0 minor releases may contain breaking changes.
 
+## [0.4.0] - 2026-10-11
+
+### Changed
+
+- **Breaking:** upgrade `affn` to `0.11`. Public geometry types and traits now
+  use this version; downstream crates must use the same compatible `affn` version.
+
 ## [0.3.0] - 2026-09-29
 
 ### Changed

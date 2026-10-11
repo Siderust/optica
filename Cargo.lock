@@ -4,9 +4,9 @@ version = 4
 
 [[package]]
 name = "affn"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c25a6b73983cee27bbaa7d3f08d6d2d266984effbadc7ae7089b383615845539"
+checksum = "c92c8eb95d800244fc4d8d01951bb0984f482189b65cfaa28219553ba6487304"
 dependencies = [
  "affn-derive",
  "qtty",
@@ -15,9 +15,9 @@ dependencies = [
 
 [[package]]
 name = "affn-derive"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "634a1cfa19b14594b9bcdd5d136d981abe2645b556322b8002c9ba5936d3c14e"
+checksum = "22c0ace8749730770c7df1e9eb5aaf4bd59aeebcd00e8f1d0f3787eaec7a9f8a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -68,7 +68,7 @@ dependencies = [
 
 [[package]]
 name = "optica"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "affn",
  "approx",
