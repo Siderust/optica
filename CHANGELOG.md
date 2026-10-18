@@ -7,6 +7,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/) starting at 1.0;
 pre-1.0 minor releases may contain breaking changes.
 
+## [0.5.0] - Unreleased
+
+### Changed
+
+- **Breaking:** upgrade `affn` to `0.12`, preserving existing features. Public
+  geometry types now share affn 0.12; downstream callers must use a compatible
+  version. No compatibility wrappers or geometry algorithms are added.
+
 ## [0.4.0] - 2026-10-11
 
 ### Changed
